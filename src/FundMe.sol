@@ -21,44 +21,35 @@
 // external & public view & pure functions
 
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.26;
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {PriceConverter} from "./PriceConverter.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-error FundMe__NotOwner(); //when you name your error use the contract name as a prefix then two underscores and then the name of the error
+error FundMe__NotOwner();
+error FundMe__SpendMoreEth();
 
-contract FundMe {
+contract FundMe is Ownable{
     using PriceConverter for uint256;
 
     mapping(address => uint256) private s_addressToAmountFunded;
     address[] private s_funders;
 
-    // Could we make this constant?  /* no! We should make it immutable! */
     address private immutable i_owner;
     uint256 public constant MINIMUM_USD = 5e18; // 5 dollars
     AggregatorV3Interface private s_priceFeed;
 
-    constructor(address priceFeed) {
-        i_owner = msg.sender;
+    constructor(address priceFeed) Ownable(msg.sender){
         s_priceFeed = AggregatorV3Interface(priceFeed);
     }
 
     function fund() public payable {
-        require(msg.value.getConversionRate(s_priceFeed) >= MINIMUM_USD, "You need to spend more ETH!");
-        // require(PriceConverter.getConversionRate(msg.value) >= MINIMUM_USD, "You need to spend more ETH!");
+        if(msg.value.getConversionRate(s_priceFeed) <= MINIMUM_USD){
+            revert FundMe__SpendMoreEth();
+        }
         s_addressToAmountFunded[msg.sender] += msg.value;
         s_funders.push(msg.sender);
-    }
-
-    function getVersion() public view returns (uint256) {
-        return s_priceFeed.version();
-    }
-
-    modifier onlyOwner() {
-        // require(msg.sender == owner);
-        if (msg.sender != i_owner) revert FundMe__NotOwner();
-        _;
     }
 
     function cheaperWithdraw() public onlyOwner {
@@ -113,6 +104,10 @@ contract FundMe {
     /**
      * View / Pure functions (Getters)
      */
+    function getVersion() public view returns (uint256) {
+        return s_priceFeed.version();
+    }
+
     function getAddressToAmountFunded(address fundingAddress) external view returns (uint256) {
         return s_addressToAmountFunded[fundingAddress];
     }
