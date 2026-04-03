@@ -34,10 +34,22 @@ error FundMe__WithdrawFailed();
 error FundMe__NoFundsToWithdraw();
 error FundMe__DeadlineNotYetPleaseWait();
 error FundMe__NoRefundGoalIsMet();
-error FundMe__goalNotReached();
+error FundMe__NotSuccessful();
+error FundMe__goalReached();
+error FundMe__NotActive();
+error FundMe__InsufficientBalance();
 
 contract FundMe is Ownable, ReentrancyGuard {
     using PriceConverter for uint256;
+
+        /*//////////////////////////////////////////////////////////////
+                           TYPE DECLARATIONS
+    //////////////////////////////////////////////////////////////*/
+    enum FundMeState {
+        ACTIVE,//funding ongoing, not yet reached the goal
+        SUCCESS,// goal has been reached, owner can withdraw funds
+        FAILED // deadline has passed without reaching the goal
+    }
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
@@ -45,10 +57,12 @@ contract FundMe is Ownable, ReentrancyGuard {
     mapping(address funder => uint256 amount) private s_addressToAmountFunded;
     address payable[] private s_funders;
     uint256 private s_totalAmountFunded;
+    uint256 private s_totalWithdrawn;
 
 
     uint256 public constant MINIMUM_USD = 1e18; // 1 dollars
     AggregatorV3Interface private s_priceFeed;
+    FundMeState private s_state;
 
     uint256 public immutable i_goal; // 50_000 * 1e18 (USD, 18 decimals)
     uint256 public immutable i_deadline; 
@@ -58,86 +72,102 @@ contract FundMe is Ownable, ReentrancyGuard {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
     event Funded(address indexed funder, uint256 amount);
+    event OwnerWithdrawn(address indexed owner, uint256 balance);
+    event Refunded(address indexed user, uint256 amount, uint256 fee);
 
-    constructor(address priceFeed) Ownable(msg.sender) {
+
+    constructor(address priceFeed, uint256 goal) Ownable(msg.sender) {
         s_priceFeed = AggregatorV3Interface(priceFeed);
         i_deadline = block.timestamp + 30 days;
+        i_goal = goal;
+        s_state = FundMeState.ACTIVE;
     }
 
         /*//////////////////////////////////////////////////////////////
                          FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     function fund() public payable {
-        uint256 usdAmount = MINIMUM_USD.getConversionRate(s_priceFeed);
+    if (s_state != FundMeState.ACTIVE) {
+        revert FundMe__NotActive();
+    }
+
+        uint256 usdAmount = msg.value.getConversionRate(s_priceFeed);
         if (usdAmount < MINIMUM_USD) {
             revert FundMe__SpendMoreEth();
         }
+
         if (s_addressToAmountFunded[msg.sender] == 0) {
             // 0 = funder has never funded before
             s_funders.push(payable(msg.sender));
         }
-        s_addressToAmountFunded[msg.sender] += msg.value;
 
+        s_addressToAmountFunded[msg.sender] += msg.value;
         s_totalAmountFunded += msg.value;
+
+        if (s_totalAmountFunded >= i_goal) {
+            s_state = FundMeState.SUCCESS;
+        }
 
         emit Funded(msg.sender, msg.value);
     }
 
     function refund() external nonReentrant {
         // Checks
-    if (block.timestamp < i_deadline) {
+    if (block.timestamp < i_deadline) { // one can only refund after the deadline has passed and goal not reached
         revert FundMe__DeadlineNotYetPleaseWait();
     }
 
-    if (s_totalAmountFunded >= i_goal) {
+    if (s_totalAmountFunded >= i_goal) {// if the goal is reached, the users should not be able to refund
         revert FundMe__NoRefundGoalIsMet();
     }
 
     uint256 amount = s_addressToAmountFunded[msg.sender];
-
     if (amount == 0) {
         revert FundMe__NoFundsToWithdraw();
     }
 
     // Effects
-    s_addressToAmountFunded[msg.sender] = 0;
+    s_addressToAmountFunded[msg.sender] = 0;// making sure that if the user calls refund again, it will fail the "NoFundsToWithdraw" check
 
     // Interaction
     (bool success,) = payable(msg.sender).call{value: amount}("");
-    if (!success) {
+    if(!success) {
         revert FundMe__WithdrawFailed();
     }
+
+    emit Refunded(msg.sender, amount, 0);
 }
 
-    function ownerWithdraw() external onlyOwner nonReentrant {
-    if (s_totalAmountFunded < i_goal) {
-        revert FundMe__goalNotReached(); // goal not reached
+    function ownerWithdraw(uint256 amount) external onlyOwner nonReentrant {
+        // checks
+    if(s_state != FundMeState.SUCCESS) {
+        revert FundMe__NotSuccessful(); // goal not reached so owner CANNOT withdraw
     }
     uint256 balance = address(this).balance;
+    if(balance == 0) {
+        revert FundMe__NoFundsToWithdraw();
+    }
 
-    (bool success,) = payable(msg.sender).call{value: balance}("");
+    // effects
+    uint256 amountToWithdraw = amount;
+    if(amount == 0) {
+        amountToWithdraw = balance; // withdraw the entire balance if the owner passes 0 as the amount
+    }
+    else {
+        if (amount > balance) {
+            revert FundMe__InsufficientBalance(); // goal reached but not enough funds to withdraw the requested amount
+        }
+    }
+    s_totalWithdrawn += amountToWithdraw; // tracking the total withdrawn amount by the owner, can be used for analytics or to set a max withdraw limit in the future
+
+    // interaction
+    (bool success,) = payable(msg.sender).call{value: amountToWithdraw}("");
     if (!success) {
         revert FundMe__WithdrawFailed();
     }
+
+    emit OwnerWithdrawn(msg.sender, amountToWithdraw);
 }
-
-    // function withdraw() public onlyOwner {
-    //     for (uint256 funderIndex = 0; funderIndex < s_funders.length; funderIndex++) {
-    //         address funder = s_funders[funderIndex];
-    //         s_addressToAmountFunded[funder] = 0;
-    //     }
-    //     delete s_funders;
-    // // transfer
-    // payable(msg.sender).transfer(address(this).balance);
-
-    // // send
-    // bool sendSuccess = payable(msg.sender).send(address(this).balance);
-    // require(sendSuccess, "Send failed");
-
-    // call
-    //     (bool callSuccess,) = payable(msg.sender).call{value: address(this).balance}("");
-    //     require(callSuccess, "Call failed");
-    // }
 
     // Explainer from: https://solidity-by-example.org/fallback/
     // Ether is sent to contract
