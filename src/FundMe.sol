@@ -33,11 +33,11 @@ error FundMe__SpendMoreEth();
 error FundMe__WithdrawFailed();
 error FundMe__NoFundsToWithdraw();
 error FundMe__DeadlineNotYetPleaseWait();
-error FundMe__NoRefundGoalIsMet();
 error FundMe__NotSuccessful();
 error FundMe__goalReached();
 error FundMe__NotActive();
 error FundMe__InsufficientBalance();
+error FundMe__RefundFailed();
 
 contract FundMe is Ownable, ReentrancyGuard {
     using PriceConverter for uint256;
@@ -120,12 +120,13 @@ contract FundMe is Ownable, ReentrancyGuard {
 
     function refund() external nonReentrant {
         // Checks
-    if (block.timestamp < i_deadline) { // one can only refund after the deadline has passed and goal not reached
-        revert FundMe__DeadlineNotYetPleaseWait();
+    if(s_state == FundMeState.SUCCESS) {
+        revert FundMe__goalReached(); // if the goal is reached, the users should not be able to refund
     }
 
-    if (s_totalAmountFunded >= i_goal) {// if the goal is reached, the users should not be able to refund
-        revert FundMe__NoRefundGoalIsMet();
+
+    if(s_state == FundMeState.ACTIVE && block.timestamp < i_deadline) {
+        revert FundMe__DeadlineNotYetPleaseWait(); // if the funding is still active and the deadline has not yet passed, users should not be able to refund
     }
 
     uint256 amount = s_addressToAmountFunded[msg.sender];
@@ -133,16 +134,28 @@ contract FundMe is Ownable, ReentrancyGuard {
         revert FundMe__NoFundsToWithdraw();
     }
 
-    // Effects
+        // Effects
     s_addressToAmountFunded[msg.sender] = 0;// making sure that if the user calls refund again, it will fail the "NoFundsToWithdraw" check
+    //Fee calculation
+    uint256 fee = (amount * i_refundFeeBps) / BasisPoints;
+    uint256 refundAmount = amount - fee;
 
-    // Interaction
+    // tracking
+    s_platformFeesCollected += fee; // tracking the total fees collected by the platform
+
+
+        // Interaction
+    (bool refunding,) = payable(i_feeRecipient).call{value: fee}("");
+    if(!refunding) {
+        revert FundMe__RefundFailed(); // if fee transfer fails, we revert the entire transaction to ensure the user does not receive a refund without paying the fee
+    }
+
     (bool success,) = payable(msg.sender).call{value: amount}("");
     if(!success) {
         revert FundMe__WithdrawFailed();
     }
 
-    emit Refunded(msg.sender, amount, 0);
+    emit Refunded(msg.sender, refundAmount, fee);
 }
 
     function ownerWithdraw(uint256 amount) external onlyOwner nonReentrant {
@@ -223,6 +236,14 @@ contract FundMe is Ownable, ReentrancyGuard {
 
     function getOwner() external view returns (address) {
         return msg.sender;
+    }
+
+    function getTotalAmountFunded() external view returns (uint256) {
+        return s_totalAmountFunded;
+    }
+
+    function getState() external view returns (FundMeState) {
+        return s_state;
     }
 }
 
