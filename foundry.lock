@@ -3,7 +3,10 @@
     "rev": "5cb41fbc9b525338b6098da5ea7dd0b7e92f89e4"
   },
   "lib/forge-std": {
-    "rev": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+    "tag": {
+      "name": "v1.15.0",
+      "rev": "0844d7e1fc5e60d77b68e469bff60265f236c398"
+    }
   },
   "lib/foundry-devops": {
     "rev": "924b6c9534e6b562fa37f751704e18acfae11f72"
