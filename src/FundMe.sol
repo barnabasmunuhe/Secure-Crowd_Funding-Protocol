@@ -65,10 +65,10 @@ contract FundMe is Ownable, ReentrancyGuard {
     uint256 public constant MINIMUM_USD = 5e18; // 5 dollars
     uint256 public constant BasisPoints = 10_000; // 100% in basis points, used for fee calculations to avoid floating point issues
 
-    uint256 public immutable i_goal; // 50_000 * 1e18 (USD, 18 decimals)
+    uint256 public immutable i_goal; // 50_000 * 1e18 (USD, 18 decimals) in our case
     uint256 public immutable i_deadline;
     address public immutable i_feeRecipient; // can be a company wallet,multSig wallet or DAO treasury that will receive a percentage of the funds if the funding campaign fails
-    uint256 public immutable i_platformFeeBps;
+    uint256 public immutable i_platformFeeBps; // 2000 bps
     uint256 public immutable i_refundFeeBps;
 
     /*//////////////////////////////////////////////////////////////

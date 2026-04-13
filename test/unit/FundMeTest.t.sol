@@ -4,10 +4,13 @@ pragma solidity ^0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
 import {FundMe} from "../../src/FundMe.sol";
-import {MockV3Aggregator} from 
-"@chainlink/contracts/src/v0.8/tests/MockV3Aggregator.sol";contract FundMeTest is Test {
+import {MockV3Aggregator} from "@chainlink/contracts/src/v0.8/tests/MockV3Aggregator.sol";
+
+contract FundMeTest is Test {
     FundMe public fundMe;
     MockV3Aggregator mockPriceFeed;
+
+    receive() external payable {} // to make the test contract receive ETH
 
     address USER = makeAddr("user");
     address USER2 = makeAddr("user2");
@@ -16,6 +19,7 @@ import {MockV3Aggregator} from
     uint256 constant SEND_VALUE = 0.1 ether; //100000000000000000
     uint256 constant STARTING_BALANCE = 10 ether;
     uint256 constant GOAL = 5 ether;
+    uint256 constant BPS = 10_000;
     uint256 constant PLATFORM_FEE_BPS = 200;
     uint256 constant REFUND_FEE_BPS = 100;
     uint8 constant DECIMALS = 8;
@@ -24,13 +28,14 @@ import {MockV3Aggregator} from
     function setUp() external {
         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE); // 2000 USD with 8 decimals
         fundMe = new FundMe(address(mockPriceFeed), GOAL, FEE_RECIPIENT, PLATFORM_FEE_BPS, REFUND_FEE_BPS);
-        vm.deal(USER, STARTING_BALANCE); 
-        vm.deal(USER2, STARTING_BALANCE); 
+        vm.deal(USER, STARTING_BALANCE);
+        vm.deal(USER2, STARTING_BALANCE);
     }
+
     // constructor function tests
     function testInitialStateIsActive() public {
-    assertEq(uint256(fundMe.getState()), 0); // ACTIVE
-}
+        assertEq(uint256(fundMe.getState()), 0); // ACTIVE
+    }
 
     function testMinimumDollarIsFive() public {
         assertEq(fundMe.MINIMUM_USD(), uint256(5e18));
@@ -38,7 +43,7 @@ import {MockV3Aggregator} from
 
     function testOwnerIsMsgSender() public view {
         assertEq(fundMe.getOwner(), address(this));
-    } 
+    }
 
     function testGoalIsSetCorrectly() public view {
         assertEq(fundMe.i_goal(), GOAL);
@@ -47,7 +52,6 @@ import {MockV3Aggregator} from
     function testFeeRecipientIsSet() public view {
         assertEq(fundMe.i_feeRecipient(), FEE_RECIPIENT);
     }
-
 
     // Funding Tests
 
@@ -109,98 +113,101 @@ import {MockV3Aggregator} from
     }
 
     // Withdraw Tests
-    modifier funded() {
+    modifier userFunded() {
         vm.prank(USER);
         fundMe.fund{value: SEND_VALUE}();
         _;
     }
 
-    function testOnlyOwnerCanWithdrawFunds() public funded {
+    modifier fullGoalFunded() {
+        vm.prank(USER);
+        fundMe.fund{value: GOAL}();
+        _;
+    }
+
+    function testOnlyOwnerCanWithdrawFunds() public userFunded {
         vm.prank(USER);
         vm.expectRevert();
-        fundMe.ownerWithdraw(SEND_VALUE);
-    }
-
-    function testWithdrawWorks() public funded{
-
-        uint256 startingBalance = address(this).balance;
-
-        fundMe.getState() = fundMe.FundMeState.SUCCESS;
-
         fundMe.ownerWithdraw(GOAL);
-
-        uint256 endingBalance = address(this).balance;
-
-        assertGt(endingBalance, startingBalance);
     }
 
-    // // function testWithDrawWithASingleFunder() public funded {
-    // //     // Arrange
-    // //     uint256 startingOwnerBalance = fundMe.getOwner().balance;
-    // //     uint256 startingFundMeBalance = address(fundMe).balance;
+    function testWithdrawWorks() public {
+        // Arrange
+        vm.prank(USER);
+        fundMe.fund{value: GOAL}(); // this will trigger GOAL success
+        // state should be SUCCESS
 
-    // //     // Act
-    // //     // uint256 gasStart = gasleft();//1000 //tells you how much gas is left in your tx call
-    // //     vm.txGasPrice(GAS_PRICE);
-    // //     vm.prank(fundMe.getOwner()); //c: 200
-    // //     fundMe.ownerWithdraw(SEND_VALUE); // should have spend gas?
+        uint256 contractBalanceBefore = address(fundMe).balance;
 
-    // //     // uint256 gasEnd = gasleft();//800
-    // //     // uint256 gasUsed = (gasStart - gasEnd) * tx.gasprice;
-    // //     // console.log(gasUsed);
+        // Act
+        fundMe.ownerWithdraw(0); // full balance withdraw
 
-    // //     //  Assert
-    // //     uint256 endingOwnerbalance = fundMe.getOwner().balance;
-    // //     uint256 endingFundMeBalance = address(fundMe).balance;
-    // //     assertEq(endingFundMeBalance, 0);
-    // //     assertEq(startingFundMeBalance + startingOwnerBalance, endingOwnerbalance);
-    // // }
+        uint256 contractBalanceAfter = address(fundMe).balance;
+        //Contract drained
+        assertEq(contractBalanceAfter, 0);
+    }
 
-    // function testwithdrawFromMultipleFunders() public funded {
-    //     // Arrange
-    //     uint160 numberOfFunders = 10;
-    //     uint160 startingFunderIndex = 1;
-    //     for (uint160 i = startingFunderIndex; i < numberOfFunders; i++) {
-    //         //vm.prank new address
-    //         //vm.deal new address
-    //         //address()
-    //         hoax(address(i), SEND_VALUE);
-    //         fundMe.fund{value: SEND_VALUE}();
-    //     }
-    //     uint256 startingOwnerBalance = fundMe.getOwner().balance;
-    //     uint256 startingFundMeBalance = address(fundMe).balance;
+    function testPartialWithdrawWorks() public fullGoalFunded {
+    uint256 withdrawAmount = 2 ether;
 
-    //     // Act
-    //     vm.startPrank(fundMe.getOwner());
-    //     fundMe.ownerWithdraw(SEND_VALUE);
-    //     vm.stopPrank();
+    fundMe.ownerWithdraw(withdrawAmount);
 
-    //     //assert
-    //     assert(address(fundMe).balance == 0);
-    //     assert(startingFundMeBalance + startingOwnerBalance == fundMe.getOwner().balance);
-    // }
+    assertGt(address(fundMe).balance, 0);
+}
 
-    // function testwithdrawFromMultipleFundersCheaper() public funded {
-    //     // Arrange
-    //     uint160 numberOfFunders = 10;
-    //     uint160 startingFunderIndex = 1;
-    //     for (uint160 i = startingFunderIndex; i < numberOfFunders; i++) {
-    //         //vm.prank new address
-    //         //vm.deal new address
-    //         //address()
-    //         hoax(address(i), SEND_VALUE);
-    //         fundMe.fund{value: SEND_VALUE}();
-    //     }
-    //     uint256 startingOwnerBalance = fundMe.getOwner().balance;
-    //     uint256 startingFundMeBalance = address(fundMe).balance;
+    function testWithdrawWorksWithFullSystemLogic() public fullGoalFunded{
+        // Arrage 
+    uint256 contractBalanceBefore = address(fundMe).balance;
+    uint256 ownerBalanceBefore = address(this).balance;
+    uint256 feeRecipientBalanceBefore = address(FEE_RECIPIENT).balance;
 
-    //     // Act
-    //     vm.startPrank(fundMe.getOwner());
-    //     fundMe.ownerWithdraw(SEND_VALUE);
-    //     vm.stopPrank();
+        // Act
+        fundMe.ownerWithdraw(0);//full withdraw
 
-    //     //assert
-    //     assert(address(fundMe).balance == 0);
-    //     assert(startingFundMeBalance + startingOwnerBalance == fundMe.getOwner().balance);
-    // }
+        // Assert
+        uint256 contractBalanceAfter = address(fundMe).balance;
+        uint256 ownerBalanceAfter = address(this).balance;
+        uint256 feeRecipientBalanceAfter = address(FEE_RECIPIENT).balance;
+        
+        // contract got draained?
+        assertEq(contractBalanceAfter, 0);
+
+        // fee recipient got paid?
+        assertGt(feeRecipientBalanceAfter, feeRecipientBalanceBefore);
+
+        // owner got paid?
+        assertGt(ownerBalanceAfter, ownerBalanceBefore);
+    }
+
+    function testWithdrawExactFeeAndPayout() public fullGoalFunded{
+        // Arrange
+        uint256 contractBalanceBefore = address(fundMe).balance;
+        uint256 feeRecipientBalanceBefore = address(FEE_RECIPIENT).balance;
+        
+        // Act
+        fundMe.ownerWithdraw(0);
+
+        // Assert
+        uint256 contractBalanceAfter = address(fundMe).balance;
+        uint256 feeRecipientBalanceAfter = address(FEE_RECIPIENT).balance;
+
+        // fee calculation
+        uint256 expectedFee = (contractBalanceBefore * PLATFORM_FEE_BPS)/BPS;
+
+        // fee received
+        uint256 actualFee = feeRecipientBalanceAfter - feeRecipientBalanceBefore;
+        
+        // fee exact?
+        assertEq(expectedFee,actualFee);
+
+        // contract drained?
+        assertEq(contractBalanceAfter, 0);
+
+        // is fee + payout = total balance?
+        uint256 payout = contractBalanceBefore - expectedFee; 
+
+        assertEq(payout + actualFee, contractBalanceBefore);
+    }
+
+    
 }
