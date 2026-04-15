@@ -165,11 +165,11 @@ contract FundMeTest is Test {
         fundMe.ownerWithdraw(GOAL);
     }
 
-    function testOwnerWithdrawZeroAmountUsesFullBalance() public  fullGoalFunded{
-    vm.prank(fundMe.getOwner());
-    fundMe.ownerWithdraw(0);
+    function testOwnerWithdrawZeroAmountUsesFullBalance() public fullGoalFunded {
+        vm.prank(fundMe.getOwner());
+        fundMe.ownerWithdraw(0);
 
-    assertEq(address(fundMe).balance, 0);
+        assertEq(address(fundMe).balance, 0);
     }
 
     function testWithdrawWorks() public {
