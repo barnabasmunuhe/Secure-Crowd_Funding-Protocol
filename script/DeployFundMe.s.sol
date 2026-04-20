@@ -22,13 +22,8 @@ contract DeployFundMe is Script {
 
         // Broadcasting the deployment transaction
         vm.startBroadcast();
-        FundMe fundMe = new FundMe(
-            config.priceFeed,
-            config.goal,
-            config.feeRecipient,
-            config.platformFeeBps,
-            config.refundFeeBps
-        );
+        FundMe fundMe =
+            new FundMe(config.priceFeed, config.goal, config.feeRecipient, config.platformFeeBps, config.refundFeeBps);
         vm.stopBroadcast();
 
         return fundMe;
