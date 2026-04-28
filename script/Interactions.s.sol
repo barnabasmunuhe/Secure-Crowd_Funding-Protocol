@@ -14,7 +14,7 @@ import {FundMe} from "../src/FundMe.sol";
 //////////////////////////////////////////////////////////////*/
 
 contract FundFundMe is Script {
-    uint256 constant SEND_VALUE = 0.5 ether;
+    uint256 constant SEND_VALUE = 15 ether;
 
     function fundFundMe(address mostRecentlydeployedFundMeAddress) public {
         FundMe(payable(mostRecentlydeployedFundMeAddress)).fund{value: SEND_VALUE}();
@@ -33,15 +33,15 @@ contract FundFundMe is Script {
                       WITHDRAW SCRIPT
 //////////////////////////////////////////////////////////////*/
 
-contract withdraw is Script {
-    function withdrawFundMe(address mostRecentlydeployed) public {
+contract withdrawFundMe is Script {
+    function withdrawFunds(address mostRecentlydeployed) public {
         FundMe(payable(mostRecentlydeployed)).ownerWithdraw(0); //pass an amount if needed
     }
 
     function run() external {
         address mostRecentlyDeployed = DevOpsTools.get_most_recent_deployment("FundMe", block.chainid);
         vm.startBroadcast();
-        withdrawFundMe(mostRecentlyDeployed);
+        withdrawFunds(mostRecentlyDeployed);
         vm.stopBroadcast();
     }
 }
@@ -51,8 +51,8 @@ contract withdraw is Script {
 //////////////////////////////////////////////////////////////*/
 
 contract RefundFundMe is Script {
-    function refundFundMe(address fundMeAddress) public {
-        FundMe(payable(fundMeAddress)).refund();
+    function refundFundMe(address fundMeAddressRecentlyDeployed) public {
+        FundMe(payable(fundMeAddressRecentlyDeployed)).refund();
         console.log("Refund executed");
     }
 

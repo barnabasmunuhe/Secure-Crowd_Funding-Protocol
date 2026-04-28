@@ -62,7 +62,7 @@ contract FundMe is Ownable, ReentrancyGuard {
     AggregatorV3Interface private s_priceFeed;
     FundMeState private s_state;
 
-    uint256 public constant MINIMUM_USD = 5e18; // 5 dollars
+    uint256 public constant MINIMUM_USD = 5e18; // around 1-5 dollars
     uint256 public constant BasisPoints = 10_000; // 100% in basis points, used for fee calculations to avoid floating point issues
 
     uint256 public immutable i_goal; // 50_000 * 1e18 (USD, 18 decimals) in our case
@@ -82,7 +82,7 @@ contract FundMe is Ownable, ReentrancyGuard {
         Ownable(msg.sender)
     {
         s_priceFeed = AggregatorV3Interface(priceFeed);
-        i_deadline = block.timestamp + 30 days;
+        i_deadline = block.timestamp + 60; // for testing purposes, we set the deadline to 1 minute after deployment, in production this could be several months or even years
         i_goal = goal;
 
         i_feeRecipient = feeRecipient;
@@ -129,6 +129,8 @@ contract FundMe is Ownable, ReentrancyGuard {
      */
     function refund() external nonReentrant {
         // Checks
+        updateState();
+
         if (s_state == FundMeState.SUCCESS) {
             revert FundMe__goalReached(); // if the goal is reached, the users should not be able to refund
         }
@@ -228,6 +230,16 @@ contract FundMe is Ownable, ReentrancyGuard {
 
     receive() external payable {
         fund();
+    }
+
+    function updateState() public {
+        if (s_state == FundMeState.ACTIVE && block.timestamp >= i_deadline) {
+            if (address(this).balance >= i_goal) {
+                s_state = FundMeState.SUCCESS;
+            } else {
+                s_state = FundMeState.FAILED;
+            }
+        }
     }
 
     /**

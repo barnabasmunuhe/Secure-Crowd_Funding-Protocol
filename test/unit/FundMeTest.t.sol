@@ -492,21 +492,3 @@ contract RevertingReceiver {
     }
 }
 
-// contract MaliciousFunder {
-//     FundMe public payable fundMe;
-
-//     constructor(address _fundMe) {
-//         fundMe = FundMe(_fundMe);
-//     }
-
-//     receive() external payable {
-//         // Try re-entering fund again (recursive funding)
-//         if (address(fundMe).balance < 10 ether) {
-//             fundMe.fund{value: 1 ether}();
-//         }
-//     }
-
-//     function attack() external payable {
-//         fundMe.fund{value: msg.value}();
-//     }
-// }
