@@ -275,30 +275,30 @@ contract FundMeTest is Test {
         assertEq(feeAfter - feeBefore, expectedFee);
     }
 
-        /*//////////////////////////////////////////////////////////////
+    /*//////////////////////////////////////////////////////////////
                            WITHDRAW EDGE FUZZ
     //////////////////////////////////////////////////////////////*/
     function testFuzz_WithdrawWithNoFundsReverts() public {
-    address owner = fundMe.getOwner();
+        address owner = fundMe.getOwner();
 
-    vm.prank(owner);
-    vm.expectRevert();
-    fundMe.ownerWithdraw(0);
-}
+        vm.prank(owner);
+        vm.expectRevert();
+        fundMe.ownerWithdraw(0);
+    }
 
-function testFuzz_WithdrawAtExactGoal() public {
-    uint256 amount = GOAL;
+    function testFuzz_WithdrawAtExactGoal() public {
+        uint256 amount = GOAL;
 
-    vm.deal(USER, amount);
+        vm.deal(USER, amount);
 
-    vm.prank(USER);
-    fundMe.fund{value: amount}();
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-    address owner = fundMe.getOwner();
+        address owner = fundMe.getOwner();
 
-    vm.prank(owner);
-    fundMe.ownerWithdraw(0);
+        vm.prank(owner);
+        fundMe.ownerWithdraw(0);
 
-    assertEq(address(fundMe).balance, 0);
-}
+        assertEq(address(fundMe).balance, 0);
+    }
 }
