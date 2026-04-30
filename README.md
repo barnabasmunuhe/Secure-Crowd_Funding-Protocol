@@ -1,4 +1,4 @@
-# 🏦 FundMe Smart Contract (Foundry Edition)
+# 🏦 Secure Crowd Fundinng Protocol (Foundry Edition)
 
 A **production-oriented crowdfunding smart contract** built with [Foundry](https://book.getfoundry.sh/), designed to handle **real-world fund flows securely**.
 
