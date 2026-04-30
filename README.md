@@ -82,7 +82,7 @@ This one implements:
 ### Clone & Build
 
 ```bash
-git clone https://github.com/barnabasmunuhe/CrowdFunding-Smart-Contract
+git clone https://github.com/barnabasmunuhe/Secure-Crowd_Funding-Protocol
 cd fund-me
 forge install
 forge build
