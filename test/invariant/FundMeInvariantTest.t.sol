@@ -77,8 +77,8 @@ contract FundMeInvariantTest is StdInvariant, Test {
         address user2 = handler.users(1);
         address user3 = handler.users(2);
 
-        uint256 totalRefunded = handler.totalRefunded(user1) + handler.totalRefunded(user2)
-            + handler.totalRefunded(user3);
+        uint256 totalRefunded =
+            handler.totalRefunded(user1) + handler.totalRefunded(user2) + handler.totalRefunded(user3);
 
         assertGe(handler.totalFunded(), 0);
         assertGe(totalRefunded, 0);
@@ -89,5 +89,15 @@ contract FundMeInvariantTest is StdInvariant, Test {
         invariant_FeesAccumulateCorrectly();
         invariant_ValueConservation();
         invariant_WithdrawNeverExceedsFunding();
+    }
+
+    function invariant_SumOfUserBalancesMatches() public view {
+        uint256 sum;
+
+        for (uint256 i = 0; i < handler.usersLength(); i++) {
+            sum += handler.userBalances(handler.users(i));
+        }
+
+        assertEq(sum, handler.totalFunded());
     }
 }

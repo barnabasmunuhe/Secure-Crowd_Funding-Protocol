@@ -92,4 +92,15 @@ contract Handler is Test {
             }
         } catch {}
     }
+
+    /*//////////////////////////////////////////////////////////////
+                                GETTERS
+    //////////////////////////////////////////////////////////////*/
+    function getUsers() public view returns (address[] memory) {
+        return users;
+    }
+
+    function usersLength() public view returns (uint256) {
+        return users.length;
+    }
 }
