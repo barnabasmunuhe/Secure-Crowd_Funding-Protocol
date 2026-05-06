@@ -17,7 +17,6 @@ contract Handler is Test {
     mapping(address => uint256) public totalRefunded;
 
     uint256 constant MIN = 0.0025 ether;
-    uint256 public constant BasisPoints = 10_000; // 100% in basis points, used for fee calculations to avoid floating point issues
 
     constructor(FundMe _fundMe) {
         fundMe = _fundMe;
@@ -53,7 +52,7 @@ contract Handler is Test {
             uint256 amount = userBalances[user];
 
             if (amount > 0) {
-                uint256 fee = (amount * fundMe.i_refundFeeBps()) / fundMe.BasisPoints();
+                uint256 fee = (amount * fundMe.i_refundFeeBps()) / fundMe.BASIS_POINTS();
                 uint256 refundAmount = amount - fee;
 
                 totalRefunded[user] += refundAmount;
@@ -79,7 +78,7 @@ contract Handler is Test {
         try fundMe.ownerWithdraw(amount) {
             totalWithdrawn = amount == 0 ? balance : amount; //if withdraw amount is 0, withdraw full balance, otherwise withdraw specified amount
 
-            uint256 fee = (totalWithdrawn * fundMe.i_platformFeeBps()) / BasisPoints;
+            uint256 fee = (totalWithdrawn * fundMe.i_platformFeeBps()) / fundMe.BASIS_POINTS();
             uint256 payout = totalWithdrawn - fee;
 
             totalWithdrawn += payout;

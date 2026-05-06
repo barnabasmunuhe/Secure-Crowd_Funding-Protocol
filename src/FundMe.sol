@@ -1,43 +1,54 @@
-// Layout of Contract:
-// version
-// imports
-// errors
-// interfaces, libraries, contracts
-// Type declarations
-// State variables
-// Events
-// Modifiers
-// Functions
+// // Layout of Contract:
+// // version
+// // imports
+// // errors
+// // interfaces, libraries, contracts
+// // Type declarations
+// // State variables
+// // Events
+// // Modifiers
+// // Functions
 
-// Layout of Functions:
-// constructor
-// receive function (if exists)
-// fallback function (if exists)
-// external
-// public
-// internal
-// private
-// internal & private view & pure functions
-// external & public view & pure functions
+// // Layout of Functions:
+// // constructor
+// // receive function (if exists)
+// // fallback function (if exists)
+// // external
+// // public
+// // internal
+// // private
+// // internal & private view & pure functions
+// // external & public view & pure functions
 
-// SPDX-License-Identifier: MIT
+// // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
+
+/*//////////////////////////////////////////////////////////////
+                            IMPORTS
+//////////////////////////////////////////////////////////////*/
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {PriceConverter} from "./PriceConverter.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+/*//////////////////////////////////////////////////////////////
+                            CONTRACT
+//////////////////////////////////////////////////////////////*/
+
 contract FundMe is Ownable, ReentrancyGuard {
     using PriceConverter for uint256;
 
+    /*//////////////////////////////////////////////////////////////
+                                ERRORS
+    //////////////////////////////////////////////////////////////*/
     error FundMe__NotOwner();
     error FundMe__SpendMoreEth();
     error FundMe__WithdrawFailed();
     error FundMe__NoFundsToWithdraw();
     error FundMe__DeadlineNotYetPleaseWait();
     error FundMe__NotSuccessful();
-    error FundMe__goalReached();
+    error FundMe__GoalReached();
     error FundMe__NotActive();
     error FundMe__InsufficientBalance();
     error FundMe__RefundFailed();
@@ -46,70 +57,85 @@ contract FundMe is Ownable, ReentrancyGuard {
                            TYPE DECLARATIONS
     //////////////////////////////////////////////////////////////*/
     enum FundMeState {
-        ACTIVE, //funding ongoing, not yet reached the goal
-        SUCCESS, // goal has been reached, owner can withdraw funds
-        FAILED // deadline has passed without reaching the goal
+        ACTIVE,
+        SUCCESS,
+        FAILED
     }
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-    mapping(address funder => uint256 amount) private s_addressToAmountFunded;
+    mapping(address => uint256) private s_addressToAmountFunded;
     address payable[] private s_funders;
+
     uint256 private s_totalAmountFunded;
     uint256 private s_totalWithdrawnByOwner;
     uint256 private s_platformFeesCollected;
+
     AggregatorV3Interface private s_priceFeed;
     FundMeState private s_state;
 
-    uint256 public constant MINIMUM_USD = 5e18; // around 1-5 dollars
-    uint256 public constant BasisPoints = 10_000; // 100% in basis points, used for fee calculations to avoid floating point issues
+    uint256 public constant MINIMUM_USD = 5e18;
+    uint256 public constant BASIS_POINTS = 10_000;
 
-    uint256 public immutable i_goal; // 50_000 * 1e18 (USD, 18 decimals) in our case
+    uint256 public immutable i_goal;
     uint256 public immutable i_deadline;
-    address public immutable i_feeRecipient; // can be a company wallet,multSig wallet or DAO treasury that will receive a percentage of the funds if the funding campaign fails
-    uint256 public immutable i_platformFeeBps; // 2000 bps
+    address public immutable i_feeRecipient;
+    uint256 public immutable i_platformFeeBps;
     uint256 public immutable i_refundFeeBps;
 
     /*//////////////////////////////////////////////////////////////
-                                 EVENTS
+                                EVENTS
     //////////////////////////////////////////////////////////////*/
     event Funded(address indexed funder, uint256 amount);
-    event OwnerWithdrawn(address indexed owner, uint256 balance);
+    event OwnerWithdrawn(address indexed owner, uint256 amount);
     event Refunded(address indexed user, uint256 amount, uint256 fee);
 
-    constructor(address priceFeed, uint256 goal, address feeRecipient, uint256 platformFeeBps, uint256 refundFeeBps)
-        Ownable(msg.sender)
-    {
+    /*//////////////////////////////////////////////////////////////
+                            CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Initializes the crowdfunding campaign
+     * @param priceFeed Chainlink ETH/USD price feed address
+     * @param goal Funding goal (in wei)
+     * @param feeRecipient Address receiving platform fees
+     * @param platformFeeBps Fee taken on successful withdrawals (bps)
+     * @param refundFeeBps Fee taken on refunds (bps)
+     */
+    constructor(
+        address priceFeed,
+        uint256 goal,
+        address feeRecipient,
+        uint256 platformFeeBps,
+        uint256 refundFeeBps
+    ) Ownable(msg.sender) {
         s_priceFeed = AggregatorV3Interface(priceFeed);
-        i_deadline = block.timestamp + 60; // for testing purposes, we set the deadline to 1 minute after deployment, in production this could be several months or even years
+        i_deadline = block.timestamp + 60;
         i_goal = goal;
 
         i_feeRecipient = feeRecipient;
         i_platformFeeBps = platformFeeBps;
         i_refundFeeBps = refundFeeBps;
+
         s_state = FundMeState.ACTIVE;
     }
 
     /*//////////////////////////////////////////////////////////////
-                         FUNCTIONS
+                            CORE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
     /**
-     * @notice  .
-     * @dev     .
+     * @notice Allows users to fund the campaign
+     * @dev Requires campaign to be ACTIVE and minimum USD contribution met
      */
     function fund() public payable {
-        if (s_state != FundMeState.ACTIVE) {
-            revert FundMe__NotActive();
-        }
+        if (s_state != FundMeState.ACTIVE) revert FundMe__NotActive();
 
         uint256 usdAmount = msg.value.getConversionRate(s_priceFeed);
-        if (usdAmount < MINIMUM_USD) {
-            revert FundMe__SpendMoreEth();
-        }
+        if (usdAmount < MINIMUM_USD) revert FundMe__SpendMoreEth();
 
         if (s_addressToAmountFunded[msg.sender] == 0) {
-            // 0 = funder has never funded before
             s_funders.push(payable(msg.sender));
         }
 
@@ -124,105 +150,69 @@ contract FundMe is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice  .
-     * @dev     .
+     * @notice Refunds user contribution if campaign fails
+     * @dev Applies refund fee and prevents reentrancy
      */
     function refund() external nonReentrant {
-        // Checks
         updateState();
 
-        if (s_state == FundMeState.SUCCESS) {
-            revert FundMe__goalReached(); // if the goal is reached, the users should not be able to refund
-        }
+        if (s_state == FundMeState.SUCCESS) revert FundMe__GoalReached();
 
         if (s_state == FundMeState.ACTIVE && block.timestamp < i_deadline) {
-            revert FundMe__DeadlineNotYetPleaseWait(); // if the funding is still active and the deadline has not yet passed, users should not be able to refund
+            revert FundMe__DeadlineNotYetPleaseWait();
         }
 
         uint256 amount = s_addressToAmountFunded[msg.sender];
-        if (amount == 0) {
-            revert FundMe__NoFundsToWithdraw();
-        }
+        if (amount == 0) revert FundMe__NoFundsToWithdraw();
 
-        // Effects
-        s_addressToAmountFunded[msg.sender] = 0; // making sure that if the user calls refund again, it will fail the "NoFundsToWithdraw" check
-        //Fee calculation
-        uint256 fee = (amount * i_refundFeeBps) / BasisPoints;
+        s_addressToAmountFunded[msg.sender] = 0;
+
+        uint256 fee = (amount * i_refundFeeBps) / BASIS_POINTS;
         uint256 refundAmount = amount - fee;
 
-        // tracking
-        s_platformFeesCollected += fee; // tracking the total fees collected by the platform
+        s_platformFeesCollected += fee;
 
-        // Interaction
-        (bool refunding,) = payable(i_feeRecipient).call{value: fee}("");
-        if (!refunding) {
-            revert FundMe__RefundFailed(); // if fee transfer fails, we revert the entire transaction to ensure the user does not receive a refund without paying the fee
-        }
+        (bool feeSent,) = payable(i_feeRecipient).call{value: fee}("");
+        if (!feeSent) revert FundMe__RefundFailed();
 
         (bool success,) = payable(msg.sender).call{value: refundAmount}("");
-        if (!success) {
-            revert FundMe__WithdrawFailed();
-        }
+        if (!success) revert FundMe__WithdrawFailed();
 
         emit Refunded(msg.sender, refundAmount, fee);
     }
 
     /**
-     * @notice  .
-     * @dev     .
-     * @param   amount  .
+     * @notice Allows owner to withdraw funds after success
+     * @param amount Amount to withdraw (0 = full balance)
+     * @dev Applies platform fee and prevents reentrancy
      */
     function ownerWithdraw(uint256 amount) external onlyOwner nonReentrant {
-        // checks
-        if (s_state != FundMeState.SUCCESS) {
-            revert FundMe__NotSuccessful(); // goal not reached so owner CANNOT withdraw
-        }
+        if (s_state != FundMeState.SUCCESS) revert FundMe__NotSuccessful();
+
         uint256 balance = address(this).balance;
-        if (balance == 0) {
-            revert FundMe__NoFundsToWithdraw();
-        }
+        if (balance == 0) revert FundMe__NoFundsToWithdraw();
 
-        // effects
-        uint256 amountToWithdraw = amount;
-        if (amount == 0) {
-            amountToWithdraw = balance; // withdraw the entire balance if the owner passes 0 as the amount
-        } else {
-            if (amount > balance) {
-                revert FundMe__InsufficientBalance(); // goal reached but not enough funds to withdraw the requested amount
-            }
-        }
-        // Fee Calculation
-        uint256 fee = (amountToWithdraw * i_platformFeeBps) / BasisPoints;
-        uint256 payoutAmount = amountToWithdraw - fee;
-        // tracking
-        s_totalWithdrawnByOwner += payoutAmount; // tracking the total withdrawn amount by the owner, can be used for analytics or to set a max withdraw limit in the future
-        s_platformFeesCollected += fee; // tracking the total fees collected by the platform, can be used for analytics or to set a max fee limit in the future
+        uint256 amountToWithdraw = amount == 0 ? balance : amount;
+        if (amountToWithdraw > balance) revert FundMe__InsufficientBalance();
 
-        // interaction
-        (bool feeTransferSuccess,) = payable(i_feeRecipient).call{value: fee}("");
-        if (!feeTransferSuccess) {
-            revert FundMe__WithdrawFailed(); // if fee transfer fails, we revert the entire transaction to ensure the owner does not receive funds without paying the fee
-        }
+        uint256 fee = (amountToWithdraw * i_platformFeeBps) / BASIS_POINTS;
+        uint256 payout = amountToWithdraw - fee;
 
-        (bool success,) = payable(msg.sender).call{value: payoutAmount}("");
-        if (!success) {
-            revert FundMe__WithdrawFailed();
-        }
+        s_totalWithdrawnByOwner += payout;
+        s_platformFeesCollected += fee;
 
-        emit OwnerWithdrawn(msg.sender, payoutAmount);
+        (bool feeSent,) = payable(i_feeRecipient).call{value: fee}("");
+        if (!feeSent) revert FundMe__WithdrawFailed();
+
+        (bool success,) = payable(msg.sender).call{value: payout}("");
+        if (!success) revert FundMe__WithdrawFailed();
+
+        emit OwnerWithdrawn(msg.sender, payout);
     }
 
-    // Explainer from: https://solidity-by-example.org/fallback/
-    // Ether is sent to contract
-    //      is msg.data empty?
-    //          /   \
-    //         yes  no
-    //         /     \
-    //    receive()?  fallback()
-    //     /   \
-    //   yes   no
-    //  /        \
-    //receive()  fallback()
+    /*//////////////////////////////////////////////////////////////
+                        FALLBACK / RECEIVE
+    //////////////////////////////////////////////////////////////*/
 
     fallback() external payable {
         fund();
@@ -232,6 +222,13 @@ contract FundMe is Ownable, ReentrancyGuard {
         fund();
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        INTERNAL LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Updates campaign state based on time and funding
+     */
     function updateState() public {
         if (s_state == FundMeState.ACTIVE && block.timestamp >= i_deadline) {
             if (address(this).balance >= i_goal) {
@@ -242,45 +239,56 @@ contract FundMe is Ownable, ReentrancyGuard {
         }
     }
 
-    /**
-     * View / Pure functions (Getters)
-     */
+    /*//////////////////////////////////////////////////////////////
+                        VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Returns Chainlink price feed version
     function getVersion() public view returns (uint256) {
         return s_priceFeed.version();
     }
 
+    /// @notice Returns price feed address
     function getPriceFeed() public view returns (address) {
         return address(s_priceFeed);
     }
 
-    function getAddressToAmountFunded(address fundingAddress) external view returns (uint256) {
-        return s_addressToAmountFunded[fundingAddress];
+    /// @notice Returns amount funded by a user
+    function getAddressToAmountFunded(address user) external view returns (uint256) {
+        return s_addressToAmountFunded[user];
     }
 
+    /// @notice Returns funder at index
     function getFunder(uint256 index) external view returns (address) {
         return s_funders[index];
     }
 
+    /// @notice Returns contract owner
     function getOwner() external view returns (address) {
         return owner();
     }
 
+    /// @notice Returns total funded amount
     function getTotalAmountFunded() external view returns (uint256) {
         return s_totalAmountFunded;
     }
 
+    /// @notice Returns current campaign state
     function getState() external view returns (FundMeState) {
         return s_state;
     }
 
+    /// @notice Returns campaign deadline
     function getDeadline() external view returns (uint256) {
         return i_deadline;
     }
 
+    /// @notice Returns total platform fees collected
     function getPlatformFeesCollected() external view returns (uint256) {
         return s_platformFeesCollected;
     }
 
+    /// @notice Returns total withdrawn by owner
     function getTotalWithdrawnByOwner() external view returns (uint256) {
         return s_totalWithdrawnByOwner;
     }

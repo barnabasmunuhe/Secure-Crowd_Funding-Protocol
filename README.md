@@ -1,6 +1,6 @@
 # 🏦 Secure Crowd Fundinng Protocol (Foundry Edition)
 
-A **production-oriented crowdfunding smart contract** built with [Foundry](https://book.getfoundry.sh/), designed to handle **real-world fund flows securely**.
+A **production-oriented crowdfunding smart contract** built with [Foundry](https://book.getfoundry.sh/), designed to handle **real-world fund flows securely** and predictably.
 
 This project goes beyond basics — it demonstrates:
 - Secure ETH handling 🔐  
@@ -44,15 +44,15 @@ This project goes beyond basics — it demonstrates:
 
 Most crowdfunding contracts stop at “fund & withdraw”.
 
-This one implements:
+This protocol implements:
 
 - ✅ **State-driven lifecycle (ACTIVE → SUCCESS → FAILED)**  
 - ✅ **User refunds with fee logic**  
 - ✅ **Owner withdrawals with platform fees**  
-- ✅ **Chainlink price feeds (USD-based funding)**  
-- ✅ **Reentrancy protection & CEI pattern**  
+- ✅ **USD-denominated funding via Chainlink**  
+- ✅ **Security patterns (CEI + Reentrancy protection)**  
 
-👉 Built like a **real DeFi primitive**, not a tutorial.
+👉 Built as a real DeFi primitive, not a demo.
 
 ---
 
