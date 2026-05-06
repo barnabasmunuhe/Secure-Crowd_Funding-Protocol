@@ -33,6 +33,7 @@ contract FundMeTest is Test {
 
     function setUp() external {
         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE); // 2000 USD with 8 decimals
+
         fundMe = new FundMe(address(mockPriceFeed), GOAL, FEE_RECIPIENT, PLATFORM_FEE_BPS, REFUND_FEE_BPS);
         vm.deal(USER, STARTING_BALANCE);
         vm.deal(USER2, STARTING_BALANCE);
@@ -193,10 +194,6 @@ contract FundMeTest is Test {
         // Arrange
         vm.prank(USER);
         fundMe.fund{value: GOAL}(); // this will trigger GOAL success
-        // state should be SUCCESS
-
-        uint256 contractBalanceBefore = address(fundMe).balance;
-
         // Act
         fundMe.ownerWithdraw(0); // full balance withdraw
 

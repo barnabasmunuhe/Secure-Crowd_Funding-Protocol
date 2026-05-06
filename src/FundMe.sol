@@ -249,6 +249,10 @@ contract FundMe is Ownable, ReentrancyGuard {
         return s_priceFeed.version();
     }
 
+    function getPriceFeed() public view returns (address) {
+        return address(s_priceFeed);
+    }
+
     function getAddressToAmountFunded(address fundingAddress) external view returns (uint256) {
         return s_addressToAmountFunded[fundingAddress];
     }

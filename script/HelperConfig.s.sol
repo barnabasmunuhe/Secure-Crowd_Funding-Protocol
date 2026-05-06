@@ -43,17 +43,17 @@ contract HelperConfig is Script {
         return activeNetworkConfig;
     }
 
-    function getSepoliaEthConfig() public view returns (NetworkConfig memory) {
+    function getSepoliaEthConfig() public pure returns (NetworkConfig memory) {
         return NetworkConfig({
             priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
-            goal: 5e17, // 0.5 ETH
+            goal: 5 ether,
             feeRecipient: 0x002AC9eA2939aA21E0b6231D74494dc4DA7f9f33,
             platformFeeBps: PLATFORMFEEBPS,
             refundFeeBps: REFUNDFEEBPS
         });
     }
 
-    function getMainnetEthConfig() public view returns (NetworkConfig memory) {
+    function getMainnetEthConfig() public pure returns (NetworkConfig memory) {
         return NetworkConfig({
             priceFeed: 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419,
             goal: 20e18,
