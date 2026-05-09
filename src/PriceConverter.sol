@@ -11,6 +11,7 @@ library PriceConverter {
         // Sepolia ETH / USD Address
         // https://docs.chain.link/data-feeds/price-feeds/addresses
 
+        // slither-disable-next-line unused-return
         (, int256 answer,,,) = priceFeed.latestRoundData();
         return uint256(answer * 10000000000); // Chainlink ETH/USD price data returns the price in 8 decimal places
         // so multiplying by 10^10 to get it to 18 decimal places, which is the standard for ETH amounts in Solidity.

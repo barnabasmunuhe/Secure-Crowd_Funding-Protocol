@@ -187,7 +187,7 @@ contract FundMe is Ownable, ReentrancyGuard {
         if (s_state != FundMeState.SUCCESS) revert FundMe__NotSuccessful();
 
         uint256 balance = address(this).balance;
-        if (balance == 0) revert FundMe__NoFundsToWithdraw();
+        if (balance <= 0) revert FundMe__NoFundsToWithdraw();
 
         uint256 amountToWithdraw = amount == 0 ? balance : amount;
         if (amountToWithdraw > balance) revert FundMe__InsufficientBalance();
