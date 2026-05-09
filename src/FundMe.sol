@@ -103,13 +103,9 @@ contract FundMe is Ownable, ReentrancyGuard {
      * @param platformFeeBps Fee taken on successful withdrawals (bps)
      * @param refundFeeBps Fee taken on refunds (bps)
      */
-    constructor(
-        address priceFeed,
-        uint256 goal,
-        address feeRecipient,
-        uint256 platformFeeBps,
-        uint256 refundFeeBps
-    ) Ownable(msg.sender) {
+    constructor(address priceFeed, uint256 goal, address feeRecipient, uint256 platformFeeBps, uint256 refundFeeBps)
+        Ownable(msg.sender)
+    {
         s_priceFeed = AggregatorV3Interface(priceFeed);
         i_deadline = block.timestamp + 60;
         i_goal = goal;
@@ -158,6 +154,7 @@ contract FundMe is Ownable, ReentrancyGuard {
 
         if (s_state == FundMeState.SUCCESS) revert FundMe__GoalReached();
 
+        // forge-lint: disable-next-line(block-timestamp)
         if (s_state == FundMeState.ACTIVE && block.timestamp < i_deadline) {
             revert FundMe__DeadlineNotYetPleaseWait();
         }
@@ -230,6 +227,7 @@ contract FundMe is Ownable, ReentrancyGuard {
      * @notice Updates campaign state based on time and funding
      */
     function updateState() public {
+        // forge-lint: disable-next-line(block-timestamp)
         if (s_state == FundMeState.ACTIVE && block.timestamp >= i_deadline) {
             if (address(this).balance >= i_goal) {
                 s_state = FundMeState.SUCCESS;
