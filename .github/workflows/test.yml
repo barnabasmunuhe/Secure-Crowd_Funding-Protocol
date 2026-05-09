@@ -19,6 +19,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
+          version: latest
           cache: true       # Speeds up RPC forking tests :contentReference[oaicite:2]{index=2}
 
       - name: Show Forge Version
