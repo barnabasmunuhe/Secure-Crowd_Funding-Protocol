@@ -163,6 +163,7 @@ contract IntegrationTest is Test {
         fundMe.ownerWithdraw(0);
 
         vm.prank(owner);
+        vm.expectRevert();
         fundMe.ownerWithdraw(0); // should not break anything
 
         assertEq(address(fundMe).balance, 0);
