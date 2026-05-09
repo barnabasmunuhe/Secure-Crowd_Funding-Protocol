@@ -35,3 +35,8 @@ jobs:
 
       - name: Snapshot Gas Usage
         run: forge snapshot
+        
+      - name: Run Forge Tests
+        env:
+            SEPOLIA_RPC: ${{ secrets.SEPOLIA_RPC }}
+        run: forge test
