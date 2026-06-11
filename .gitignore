@@ -13,4 +13,8 @@ docs/
 # Dotenv file
 .env
 
+#
+.devcontainer
+
+
 broadcast/
