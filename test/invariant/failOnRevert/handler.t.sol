@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {FundMe} from "../../src/FundMe.sol";
+import {FundMe} from "../../../src/FundMe.sol";
 import {Test} from "forge-std/Test.sol";
 
 contract Handler is Test {
@@ -13,8 +13,8 @@ contract Handler is Test {
     uint256 public totalWithdrawn;
     uint256 public totalPlatformFees;
 
-    mapping(address => uint256) public userBalances;
-    mapping(address => uint256) public totalRefunded;
+    mapping(address user => uint256 balance) public userBalances;
+    mapping(address users => uint256 totalAmount) public totalRefunded;
 
     uint256 constant MIN = 0.0025 ether;
 

@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.28;
 
-import {FundMe} from "../../src/FundMe.sol";
+import {FundMe} from "../../../src/FundMe.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {Handler} from "./Handler.t.sol";
 import {Test} from "forge-std/Test.sol";

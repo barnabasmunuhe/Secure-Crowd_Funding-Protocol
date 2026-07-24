@@ -207,6 +207,17 @@ contract FundMe is Ownable, ReentrancyGuard {
         emit OwnerWithdrawn(msg.sender, payout);
     }
 
+    function finalizeCampaign() external {
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp < i_deadline) revert FundMe__DeadlineNotYetPleaseWait();
+
+        if (s_totalAmountFunded >= i_goal) {
+            s_state = FundMeState.SUCCESS;
+        } else {
+            s_state = FundMeState.FAILED;
+        }
+    }
+
     /*//////////////////////////////////////////////////////////////
                         FALLBACK / RECEIVE
     //////////////////////////////////////////////////////////////*/

@@ -53,11 +53,11 @@ contract FundMeTest is Test {
     }
 
     // constructor function tests/General
-    function testInitialStateIsActive() public {
+    function testInitialStateIsActive() public view{
         assertEq(uint256(fundMe.getState()), 0); // ACTIVE
     }
 
-    function testMinimumDollarIsFive() public {
+    function testMinimumDollarIsFive() public view{
         assertEq(fundMe.MINIMUM_USD(), uint256(5e18));
     }
 
@@ -124,7 +124,7 @@ contract FundMeTest is Test {
     // }
 
     // Funding Tests
-    function testPriceFeedVersion() public {
+    function testPriceFeedVersion() public view{
         uint256 version = fundMe.getVersion();
         assertEq(version, 0);
     }
@@ -212,7 +212,6 @@ contract FundMeTest is Test {
 
     function testWithdrawWorksWithFullSystemLogic() public fullGoalFunded {
         // Arrage
-        uint256 contractBalanceBefore = address(fundMe).balance;
         uint256 ownerBalanceBefore = address(this).balance;
         uint256 feeRecipientBalanceBefore = address(FEE_RECIPIENT).balance;
 
@@ -319,7 +318,6 @@ contract FundMeTest is Test {
 
     function testRefundWorksAfterFailure() public userFunded {
         uint256 userBalanceBeforeRefund = address(USER).balance;
-        uint256 amountFunded = fundMe.getAddressToAmountFunded(USER);
 
         vm.warp(block.timestamp + 30 days + 1);
 
@@ -467,7 +465,7 @@ contract FundMeTest is Test {
     /*//////////////////////////////////////////////////////////////
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
-    function getExpectedRefund(uint256 amount) internal view returns (uint256 fee, uint256 refund) {
+    function getExpectedRefund(uint256 amount) internal pure returns (uint256 fee, uint256 refund) {
         fee = (amount * REFUND_FEE_BPS) / 10_000;
         refund = amount - fee;
     }
