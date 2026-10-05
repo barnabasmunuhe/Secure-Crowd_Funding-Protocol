@@ -20,7 +20,7 @@ library PriceConverter {
         (, int256 answer,,,) = priceFeed.latestRoundData();
         if (answer < 0) revert PriceConverter__InvalidPriceData();
         return uint256(answer * 1e10); // Chainlink ETH/USD price data returns the price in 8 decimal places
-        // so multiplying by 10^10 to get it to 18 decimal places, which is the standard for ETH amounts in Solidity.
+            // so multiplying by 10^10 to get it to 18 decimal places, which is the standard for ETH amounts in Solidity.
     }
 
     // 1000000000

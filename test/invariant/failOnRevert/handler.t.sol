@@ -38,7 +38,8 @@ contract Handler is Test {
         vm.deal(user, amount);
 
         vm.prank(user);
-        try fundMe.fund{value: amount}() { //update state after success
+        try fundMe.fund{value: amount}() {
+            //update state after success
             userBalances[user] += amount;
             totalFunded += amount;
         } catch {}

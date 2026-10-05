@@ -53,11 +53,11 @@ contract FundMeTest is Test {
     }
 
     // constructor function tests/General
-    function testInitialStateIsActive() public view{
+    function testInitialStateIsActive() public view {
         assertEq(uint256(fundMe.getState()), 0); // ACTIVE
     }
 
-    function testMinimumDollarIsFive() public view{
+    function testMinimumDollarIsFive() public view {
         assertEq(fundMe.MINIMUM_USD(), uint256(5e18));
     }
 
@@ -124,7 +124,7 @@ contract FundMeTest is Test {
     // }
 
     // Funding Tests
-    function testPriceFeedVersion() public view{
+    function testPriceFeedVersion() public view {
         uint256 version = fundMe.getVersion();
         assertEq(version, 0);
     }
@@ -477,7 +477,6 @@ contract FundMeTest is Test {
  * @dev     . This contract is designed to simulate a malicious or faulty recipient that reverts on receiving ETH, allowing us to test the refund logic in the FundMe contract under conditions where the fee transfer fails. By using this contract as the fee recipient, we can ensure that our refund function correctly handles reversion scenarios and does not allow users to receive refunds without paying the required fee.
  * @notice  . This contract should be used in conjunction with the FundMe contract's refund function to test the behavior when the fee transfer fails. When the FundMe contract attempts to transfer the fee to this RevertingReceiver, it will revert, allowing us to verify that the refund function properly reverts the entire transaction and does not allow the user to receive a refund without paying the fee.
  */
-
 contract RevertingReceiver {
     //Malicious Contract
     error RevertingReceiver__RevertOnReceive();
@@ -486,4 +485,3 @@ contract RevertingReceiver {
         revert RevertingReceiver__RevertOnReceive();
     }
 }
-
