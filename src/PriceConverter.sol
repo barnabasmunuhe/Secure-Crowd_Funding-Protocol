@@ -28,12 +28,12 @@ library PriceConverter {
         if (answer <= 0) revert PriceConverter__InvalidPriceData(answer);
 
         // reject zero/ stale timestamps
-        if(updatedAt == 0 || block.timestamp - updatedAt > STALENESS_THRESHOLD) {
+        if (updatedAt == 0 || block.timestamp - updatedAt > STALENESS_THRESHOLD) {
             revert PriceConverter__StalePrice(updatedAt);
         }
 
         // reject incomplete rounds
-        if(answeredInRound < roundId) {
+        if (answeredInRound < roundId) {
             revert PriceConverter__IncompleteRound(roundId, answeredInRound);
         }
         return uint256(answer * 1e10); // Chainlink ETH/USD price data returns the price in 8 decimal places
@@ -43,7 +43,6 @@ library PriceConverter {
     /**
      * @notice Converts a wei amount to its USD value (18 decimals).
      */
-
     function getConversionRate(uint256 ethAmount, AggregatorV3Interface priceFeed) internal view returns (uint256) {
         uint256 ethPrice = getPrice(priceFeed);
         uint256 ethAmountInUsd = (ethPrice * ethAmount) / 1e18;
