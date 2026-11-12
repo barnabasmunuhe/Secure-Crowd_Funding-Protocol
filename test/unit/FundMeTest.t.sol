@@ -28,13 +28,14 @@ contract FundMeTest is Test {
     uint256 constant BPS = 10_000;
     uint256 constant PLATFORM_FEE_BPS = 200;
     uint256 constant REFUND_FEE_BPS = 100;
+    uint256 constant DURATION = 60;
     uint8 constant DECIMALS = 8;
     int256 constant ETHPRICE = 2000e8; // $2000
 
     function setUp() external {
         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE); // 2000 USD with 8 decimals
 
-        fundMe = new FundMe(address(mockPriceFeed), GOAL, FEE_RECIPIENT, PLATFORM_FEE_BPS, REFUND_FEE_BPS);
+        fundMe = new FundMe(address(mockPriceFeed), GOAL, FEE_RECIPIENT, PLATFORM_FEE_BPS, REFUND_FEE_BPS, DURATION);
         vm.deal(USER, STARTING_BALANCE);
         vm.deal(USER2, STARTING_BALANCE);
         vm.deal(USER3, STARTING_BALANCE);
@@ -280,7 +281,7 @@ contract FundMeTest is Test {
 
         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE);
         FundMe badFundMe =
-            new FundMe(address(mockPriceFeed), GOAL, address(badRecipient), PLATFORM_FEE_BPS, REFUND_FEE_BPS);
+            new FundMe(address(mockPriceFeed), GOAL, address(badRecipient), PLATFORM_FEE_BPS, REFUND_FEE_BPS, DURATION);
 
         vm.prank(USER);
         badFundMe.fund{value: GOAL}();
@@ -448,7 +449,7 @@ contract FundMeTest is Test {
         // Deploy new FundMe with malicious fee recipient
         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE);
         FundMe badFundMe =
-            new FundMe(address(mockPriceFeed), GOAL, address(badRecipient), PLATFORM_FEE_BPS, REFUND_FEE_BPS);
+            new FundMe(address(mockPriceFeed), GOAL, address(badRecipient), PLATFORM_FEE_BPS, REFUND_FEE_BPS, DURATION);
 
         vm.deal(USER, 10 ether);
 

@@ -3,7 +3,7 @@
 pragma solidity ^0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
-import {FundMe} from "../../../src/FundMe.sol";
+import {FundMe} from "../../src/FundMe.sol";
 import {MockV3Aggregator} from "@chainlink/contracts/src/v0.8/tests/MockV3Aggregator.sol";
 
 contract FundMeTest is Test {
@@ -25,6 +25,7 @@ contract FundMeTest is Test {
     uint256 constant SEND_VALUE = 0.1 ether; //100000000000000000
     uint256 constant STARTING_BALANCE = 10 ether;
     uint256 constant GOAL = 5 ether;
+    uint256 constant DURATION = 60;
     uint256 constant BPS = 10_000;
     uint256 constant PLATFORM_FEE_BPS = 200;
     uint256 constant REFUND_FEE_BPS = 100;
@@ -33,7 +34,7 @@ contract FundMeTest is Test {
 
     function setUp() external {
         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE); // 2000 USD with 8 decimals
-        fundMe = new FundMe(address(mockPriceFeed), GOAL, FEE_RECIPIENT, PLATFORM_FEE_BPS, REFUND_FEE_BPS);
+        fundMe = new FundMe(address(mockPriceFeed), GOAL, FEE_RECIPIENT, PLATFORM_FEE_BPS, REFUND_FEE_BPS, DURATION);
         vm.deal(USER, STARTING_BALANCE);
         vm.deal(USER2, STARTING_BALANCE);
         vm.deal(USER3, STARTING_BALANCE);

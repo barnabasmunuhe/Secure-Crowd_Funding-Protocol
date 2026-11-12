@@ -42,6 +42,7 @@ contract FundMe is Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
+    error FundMe__CampaignEnded();
     error FundMe__NotOwner();
     error FundMe__SpendMoreEth();
     error FundMe__WithdrawFailed();
@@ -52,6 +53,15 @@ contract FundMe is Ownable, ReentrancyGuard {
     error FundMe__NotActive();
     error FundMe__InsufficientBalance();
     error FundMe__RefundFailed();
+    error FundMe__CampaignAlreadyFinalized();
+
+    // --- constructor validation ---
+    error FundMe__InvalidPriceFeed();
+    error FundMe__InvalidGoal();
+    error FundMe__InvalidDeadline();
+    error FundMe__InvalidFeeRecipient();
+    error FundMe__InvalidFeeBps();
+    error FundMe__InvalidDuration();
 
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
@@ -65,21 +75,24 @@ contract FundMe is Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
+
     mapping(address => uint256) private s_addressToAmountFunded;
     address payable[] private s_funders;
 
-    uint256 private s_totalAmountFunded;
+    uint256 private s_totalAmountFunded; // ETH received, in wei
+    uint256 private s_totalAmountFundedUsd; // USD value, scaled to 18 decimals
     uint256 private s_totalWithdrawnByOwner;
     uint256 private s_platformFeesCollected;
 
     AggregatorV3Interface private s_priceFeed;
     FundMeState private s_state;
 
-    uint256 public constant MINIMUM_USD = 5e18;
+    uint256 public constant MINIMUM_USD = 0.0025 ether;
     uint256 public constant BASIS_POINTS = 10_000;
+    uint256 public constant MAX_FEE_BPS = 500; // 5% hard cap
 
-    uint256 public immutable i_goal;
-    uint256 public immutable i_deadline;
+    uint256 public immutable i_goal; // USD, 18 decimals
+    uint256 public immutable i_deadline; // Unix timestamp
     address public immutable i_feeRecipient;
     uint256 public immutable i_platformFeeBps;
     uint256 public immutable i_refundFeeBps;
@@ -90,25 +103,45 @@ contract FundMe is Ownable, ReentrancyGuard {
     event Funded(address indexed funder, uint256 amount);
     event OwnerWithdrawn(address indexed owner, uint256 amount);
     event Refunded(address indexed user, uint256 amount, uint256 fee);
+    event StateChanged(FundMeState newState);
 
     /*//////////////////////////////////////////////////////////////
                             CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Initializes the crowdfunding campaign
-     * @param priceFeed Chainlink ETH/USD price feed address
-     * @param goal Funding goal (in wei)
-     * @param feeRecipient Address receiving platform fees
-     * @param platformFeeBps Fee taken on successful withdrawals (bps)
-     * @param refundFeeBps Fee taken on refunds (bps)
+     * @notice Initializes the crowdfunding campaign.
+     * @param priceFeed    Chainlink ETH/USD price feed address.
+     * @param goalUsd      Funding goal in USD, 18 decimals (e.g. 10_000e18 = $10,000).
+     * @param duration Campaign duration in seconds, starting at deployment.
+     * @param feeRecipient Address receiving platform fees.
+     * @param platformFeeBps Fee on successful withdrawals (bps, max 500).
+     * @param refundFeeBps   Fee on refunds (bps, max 500).
      */
-    constructor(address priceFeed, uint256 goal, address feeRecipient, uint256 platformFeeBps, uint256 refundFeeBps)
-        Ownable(msg.sender)
-    {
+    constructor(
+        address priceFeed,
+        uint256 goalUsd,
+        address feeRecipient,
+        uint256 platformFeeBps,
+        uint256 refundFeeBps,
+        uint256 duration
+    ) Ownable(msg.sender) {
+        if (priceFeed == address(0) || priceFeed.code.length == 0) {
+            revert FundMe__InvalidPriceFeed();
+        }
+        if (AggregatorV3Interface(priceFeed).decimals() != 8) {
+            revert FundMe__InvalidPriceFeed();
+        }
+        if (goalUsd == 0) revert FundMe__InvalidGoal();
+        if (duration == 0) revert FundMe__InvalidDuration();
+        if (feeRecipient == address(0)) revert FundMe__InvalidFeeRecipient();
+        if (platformFeeBps > MAX_FEE_BPS || refundFeeBps > MAX_FEE_BPS) {
+            revert FundMe__InvalidFeeBps();
+        }
+
         s_priceFeed = AggregatorV3Interface(priceFeed);
-        i_deadline = block.timestamp + 60;
-        i_goal = goal;
+        i_deadline = block.timestamp + duration;
+        i_goal = goalUsd;
 
         i_feeRecipient = feeRecipient;
         i_platformFeeBps = platformFeeBps;
@@ -122,11 +155,13 @@ contract FundMe is Ownable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Allows users to fund the campaign
-     * @dev Requires campaign to be ACTIVE and minimum USD contribution met
+     * @notice Allows users to fund the campaign before its deadline.
+     * @dev Contributions must be worth at least MINIMUM_USD.
      */
     function fund() public payable {
         if (s_state != FundMeState.ACTIVE) revert FundMe__NotActive();
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp >= i_deadline) revert FundMe__CampaignEnded();
 
         uint256 usdAmount = msg.value.getConversionRate(s_priceFeed);
         if (usdAmount < MINIMUM_USD) revert FundMe__SpendMoreEth();
@@ -137,9 +172,11 @@ contract FundMe is Ownable, ReentrancyGuard {
 
         s_addressToAmountFunded[msg.sender] += msg.value;
         s_totalAmountFunded += msg.value;
+        s_totalAmountFundedUsd += usdAmount;
 
         if (s_totalAmountFunded >= i_goal) {
             s_state = FundMeState.SUCCESS;
+            emit StateChanged(s_state);
         }
 
         emit Funded(msg.sender, msg.value);
@@ -147,17 +184,13 @@ contract FundMe is Ownable, ReentrancyGuard {
 
     /**
      * @notice Refunds user contribution if campaign fails
-     * @dev Applies refund fee and prevents reentrancy
+     * @dev Applies refund fee, prevents reentrancy and follows checks-effects-interactions
      */
     function refund() external nonReentrant {
         updateState();
 
         if (s_state == FundMeState.SUCCESS) revert FundMe__GoalReached();
-
-        // forge-lint: disable-next-line(block-timestamp)
-        if (s_state == FundMeState.ACTIVE && block.timestamp < i_deadline) {
-            revert FundMe__DeadlineNotYetPleaseWait();
-        }
+        if (s_state != FundMeState.FAILED) revert FundMe__DeadlineNotYetPleaseWait();
 
         uint256 amount = s_addressToAmountFunded[msg.sender];
         if (amount == 0) revert FundMe__NoFundsToWithdraw();
@@ -166,7 +199,6 @@ contract FundMe is Ownable, ReentrancyGuard {
 
         uint256 fee = (amount * i_refundFeeBps) / BASIS_POINTS;
         uint256 refundAmount = amount - fee;
-
         s_platformFeesCollected += fee;
 
         (bool feeSent,) = payable(i_feeRecipient).call{value: fee}("");
@@ -207,15 +239,16 @@ contract FundMe is Ownable, ReentrancyGuard {
         emit OwnerWithdrawn(msg.sender, payout);
     }
 
+    /**
+     * @notice Finalizes the campaign after its deadline.
+     * @dev Anyone may call this; the state can transition only once from ACTIVE.
+     */
     function finalizeCampaign() external {
+        if (s_state != FundMeState.ACTIVE) revert FundMe__CampaignAlreadyFinalized();
         // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp < i_deadline) revert FundMe__DeadlineNotYetPleaseWait();
 
-        if (s_totalAmountFunded >= i_goal) {
-            s_state = FundMeState.SUCCESS;
-        } else {
-            s_state = FundMeState.FAILED;
-        }
+        updateState();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -231,20 +264,22 @@ contract FundMe is Ownable, ReentrancyGuard {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        INTERNAL LOGIC
+                        STATE MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Updates campaign state based on time and funding
+     * @notice Updates campaign state once its deadline has passed.
+     * @dev The goal comparison uses cumulative USD value, not the ETH balance.
      */
     function updateState() public {
         // forge-lint: disable-next-line(block-timestamp)
         if (s_state == FundMeState.ACTIVE && block.timestamp >= i_deadline) {
-            if (address(this).balance >= i_goal) {
+            if (s_totalAmountFundedUsd >= i_goal) {
                 s_state = FundMeState.SUCCESS;
             } else {
                 s_state = FundMeState.FAILED;
             }
+            emit StateChanged(s_state);
         }
     }
 
@@ -280,6 +315,11 @@ contract FundMe is Ownable, ReentrancyGuard {
     /// @notice Returns total funded amount
     function getTotalAmountFunded() external view returns (uint256) {
         return s_totalAmountFunded;
+    }
+
+    /// @notice Returns cumulative USD value funded, scaled to 18 decimals.
+    function getTotalAmountFundedUsd() external view returns (uint256) {
+        return s_totalAmountFundedUsd;
     }
 
     /// @notice Returns current campaign state

@@ -2,9 +2,10 @@
 pragma solidity ^0.8.18;
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-// Why is this a library and not abstract?
-// Why not an interface?
+/// @title PriceConverter
+/// @notice Converts ETH amounts to USD using a Chainlink ETH/USD price feed.
 library PriceConverter {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -16,8 +17,12 @@ library PriceConverter {
 
     /// @dev Max age of a Chainlink answer before it is considered stale.
     uint256 internal constant STALENESS_THRESHOLD = 1 hours;
+    uint256 internal constant PRICE_FEED_DECIMALS = 8;
+    uint256 internal constant TARGET_DECIMALS = 18;
 
-    // We could make this public, but then we'd have to deploy it
+    /**
+     * @notice Returns the ETH/USD price scaled to 18 decimals.
+     */
     function getPrice(AggregatorV3Interface priceFeed) internal view returns (uint256) {
         // Sepolia ETH / USD Address
         // https://docs.chain.link/data-feeds/price-feeds/addresses
@@ -41,12 +46,9 @@ library PriceConverter {
     }
 
     /**
-     * @notice Converts a wei amount to its USD value (18 decimals).
+     * @notice Converts a wei-denominated ETH amount to USD, scaled to 18 decimals.
      */
     function getConversionRate(uint256 ethAmount, AggregatorV3Interface priceFeed) internal view returns (uint256) {
-        uint256 ethPrice = getPrice(priceFeed);
-        uint256 ethAmountInUsd = (ethPrice * ethAmount) / 1e18;
-        // the actual ETH/USD conversion rate, after adjusting the extra 0s.
-        return ethAmountInUsd;
+        return Math.mulDiv(getPrice(priceFeed), ethAmount, 1e18);
     }
 }
