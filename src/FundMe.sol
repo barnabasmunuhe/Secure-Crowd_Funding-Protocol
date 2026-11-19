@@ -1,25 +1,3 @@
-// // Layout of Contract:
-// // version
-// // imports
-// // errors
-// // interfaces, libraries, contracts
-// // Type declarations
-// // State variables
-// // Events
-// // Modifiers
-// // Functions
-
-// // Layout of Functions:
-// // constructor
-// // receive function (if exists)
-// // fallback function (if exists)
-// // external
-// // public
-// // internal
-// // private
-// // internal & private view & pure functions
-// // external & public view & pure functions
-
 // // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
@@ -87,10 +65,10 @@ contract FundMe is Ownable, ReentrancyGuard {
     AggregatorV3Interface private s_priceFeed;
     FundMeState private s_state;
 
-    uint256 public constant MINIMUM_USD = 0.0025 ether;
     uint256 public constant BASIS_POINTS = 10_000;
     uint256 public constant MAX_FEE_BPS = 500; // 5% hard cap
 
+    uint256 public immutable MINIMUM_USD;
     uint256 public immutable i_goal; // USD, 18 decimals
     uint256 public immutable i_deadline; // Unix timestamp
     address public immutable i_feeRecipient;
@@ -120,6 +98,7 @@ contract FundMe is Ownable, ReentrancyGuard {
      */
     constructor(
         address priceFeed,
+        uint256 minimumUsd,
         uint256 goalUsd,
         address feeRecipient,
         uint256 platformFeeBps,
@@ -129,9 +108,15 @@ contract FundMe is Ownable, ReentrancyGuard {
         if (priceFeed == address(0) || priceFeed.code.length == 0) {
             revert FundMe__InvalidPriceFeed();
         }
+
+        if (minimumUsd == 0 || minimumUsd > goalUsd) {
+            revert FundMe__InvalidMinimumUsd();
+        }
+
         if (AggregatorV3Interface(priceFeed).decimals() != 8) {
             revert FundMe__InvalidPriceFeed();
         }
+
         if (goalUsd == 0) revert FundMe__InvalidGoal();
         if (duration == 0) revert FundMe__InvalidDuration();
         if (feeRecipient == address(0)) revert FundMe__InvalidFeeRecipient();
@@ -174,7 +159,7 @@ contract FundMe is Ownable, ReentrancyGuard {
         s_totalAmountFunded += msg.value;
         s_totalAmountFundedUsd += usdAmount;
 
-        if (s_totalAmountFunded >= i_goal) {
+        if (s_totalAmountFundedUsd >= i_goal) {
             s_state = FundMeState.SUCCESS;
             emit StateChanged(s_state);
         }
@@ -201,8 +186,10 @@ contract FundMe is Ownable, ReentrancyGuard {
         uint256 refundAmount = amount - fee;
         s_platformFeesCollected += fee;
 
-        (bool feeSent,) = payable(i_feeRecipient).call{value: fee}("");
-        if (!feeSent) revert FundMe__RefundFailed();
+        if (fee > 0) {
+            (bool feeSent,) = payable(i_feeRecipient).call{value: fee}("");
+            if (!feeSent) revert FundMe__RefundFailed();
+        }
 
         (bool success,) = payable(msg.sender).call{value: refundAmount}("");
         if (!success) revert FundMe__WithdrawFailed();
@@ -211,7 +198,7 @@ contract FundMe is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Allows owner to withdraw funds after success
+     * @notice Allows owner to withdraw funds after compaign success.
      * @param amount Amount to withdraw (0 = full balance)
      * @dev Applies platform fee and prevents reentrancy
      */
@@ -219,7 +206,7 @@ contract FundMe is Ownable, ReentrancyGuard {
         if (s_state != FundMeState.SUCCESS) revert FundMe__NotSuccessful();
 
         uint256 balance = address(this).balance;
-        if (balance <= 0) revert FundMe__NoFundsToWithdraw();
+        if (balance == 0) revert FundMe__NoFundsToWithdraw();
 
         uint256 amountToWithdraw = amount == 0 ? balance : amount;
         if (amountToWithdraw > balance) revert FundMe__InsufficientBalance();
@@ -230,8 +217,10 @@ contract FundMe is Ownable, ReentrancyGuard {
         s_totalWithdrawnByOwner += payout;
         s_platformFeesCollected += fee;
 
-        (bool feeSent,) = payable(i_feeRecipient).call{value: fee}("");
-        if (!feeSent) revert FundMe__WithdrawFailed();
+        if (fee > 0) {
+            (bool feeSent,) = payable(i_feeRecipient).call{value: fee}("");
+            if (!feeSent) revert FundMe__WithdrawFailed();
+        }
 
         (bool success,) = payable(msg.sender).call{value: payout}("");
         if (!success) revert FundMe__WithdrawFailed();

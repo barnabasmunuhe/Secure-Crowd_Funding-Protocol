@@ -32,8 +32,8 @@ library PriceConverter {
         // rejects non +ve answers
         if (answer <= 0) revert PriceConverter__InvalidPriceData(answer);
 
-        // reject zero/ stale timestamps
-        if (updatedAt == 0 || block.timestamp - updatedAt > STALENESS_THRESHOLD) {
+        // reject zero/ stale timestamps including future oracle timestamps
+        if (updatedAt == 0 || updatedAt > block.timestamp || block.timestamp - updatedAt > STALENESS_THRESHOLD) {
             revert PriceConverter__StalePrice(updatedAt);
         }
 
@@ -41,8 +41,8 @@ library PriceConverter {
         if (answeredInRound < roundId) {
             revert PriceConverter__IncompleteRound(roundId, answeredInRound);
         }
-        return uint256(answer * 1e10); // Chainlink ETH/USD price data returns the price in 8 decimal places
-            // so multiplying by 10^10 to get it to 18 decimal places, which is the standard for ETH amounts in Solidity.
+        //forge-lint: disable-next-line(unsafe-typecast)
+        return uint256(answer * int256(10 ** (TARGET_DECIMALS - PRICE_FEED_DECIMALS)));
     }
 
     /**
