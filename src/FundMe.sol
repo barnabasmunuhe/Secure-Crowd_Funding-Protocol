@@ -40,6 +40,7 @@ contract FundMe is Ownable, ReentrancyGuard {
     error FundMe__InvalidFeeRecipient();
     error FundMe__InvalidFeeBps();
     error FundMe__InvalidDuration();
+    error FundMe__InvalidMinimumUsd();
 
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
@@ -68,8 +69,8 @@ contract FundMe is Ownable, ReentrancyGuard {
     uint256 public constant BASIS_POINTS = 10_000;
     uint256 public constant MAX_FEE_BPS = 500; // 5% hard cap
 
-    uint256 public immutable MINIMUM_USD;
-    uint256 public immutable i_goal; // USD, 18 decimals
+    uint256 public immutable i_minimumUsd;
+    uint256 public immutable i_goalUsd; // USD, 18 decimals
     uint256 public immutable i_deadline; // Unix timestamp
     address public immutable i_feeRecipient;
     uint256 public immutable i_platformFeeBps;
@@ -126,7 +127,8 @@ contract FundMe is Ownable, ReentrancyGuard {
 
         s_priceFeed = AggregatorV3Interface(priceFeed);
         i_deadline = block.timestamp + duration;
-        i_goal = goalUsd;
+        i_minimumUsd = minimumUsd;
+        i_goalUsd = goalUsd;
 
         i_feeRecipient = feeRecipient;
         i_platformFeeBps = platformFeeBps;
@@ -149,7 +151,7 @@ contract FundMe is Ownable, ReentrancyGuard {
         if (block.timestamp >= i_deadline) revert FundMe__CampaignEnded();
 
         uint256 usdAmount = msg.value.getConversionRate(s_priceFeed);
-        if (usdAmount < MINIMUM_USD) revert FundMe__SpendMoreEth();
+        if (usdAmount < i_minimumUsd) revert FundMe__SpendMoreEth();
 
         if (s_addressToAmountFunded[msg.sender] == 0) {
             s_funders.push(payable(msg.sender));
@@ -159,7 +161,7 @@ contract FundMe is Ownable, ReentrancyGuard {
         s_totalAmountFunded += msg.value;
         s_totalAmountFundedUsd += usdAmount;
 
-        if (s_totalAmountFundedUsd >= i_goal) {
+        if (s_totalAmountFundedUsd >= i_goalUsd) {
             s_state = FundMeState.SUCCESS;
             emit StateChanged(s_state);
         }
@@ -263,7 +265,7 @@ contract FundMe is Ownable, ReentrancyGuard {
     function updateState() public {
         // forge-lint: disable-next-line(block-timestamp)
         if (s_state == FundMeState.ACTIVE && block.timestamp >= i_deadline) {
-            if (s_totalAmountFundedUsd >= i_goal) {
+            if (s_totalAmountFundedUsd >= i_goalUsd) {
                 s_state = FundMeState.SUCCESS;
             } else {
                 s_state = FundMeState.FAILED;
