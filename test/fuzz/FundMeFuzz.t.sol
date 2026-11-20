@@ -1,305 +1,313 @@
-// //SPDX-License-Identifier: MIT
+//SPDX-License-Identifier: MIT
 
-// pragma solidity ^0.8.28;
+pragma solidity ^0.8.28;
 
-// import {Test, console} from "forge-std/Test.sol";
-// import {FundMe} from "../../src/FundMe.sol";
-// import {MockV3Aggregator} from "@chainlink/contracts/src/v0.8/tests/MockV3Aggregator.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {FundMe} from "../../src/FundMe.sol";
+import {MockV3Aggregator} from "@chainlink/contracts/src/v0.8/tests/MockV3Aggregator.sol";
 
-// contract FundMeTest is Test {
-//     error FundMe__InsufficientBalance();
-//     error FundMe__NotSuccessful();
-//     error FundMe__RefundFailed();
-//     error FundMe__WithdrawFailed();
+contract FundMeTest is Test {
+    error FundMe__InsufficientBalance();
+    error FundMe__NotSuccessful();
+    error FundMe__RefundFailed();
+    error FundMe__WithdrawFailed();
 
-//     FundMe public fundMe;
-//     MockV3Aggregator mockPriceFeed;
+    FundMe public fundMe;
+    MockV3Aggregator mockPriceFeed;
 
-//     receive() external payable {} // to make the test contract receive ETH
+    receive() external payable {} // to make the test contract receive ETH
 
-//     address USER = makeAddr("user");
-//     address USER2 = makeAddr("user2");
-//     address USER3 = makeAddr("user3");
-//     address FEE_RECIPIENT = makeAddr("feeRecipient");
+    address USER = makeAddr("user");
+    address USER2 = makeAddr("user2");
+    address USER3 = makeAddr("user3");
+    address FEE_RECIPIENT = makeAddr("feeRecipient");
 
-//     uint256 constant SEND_VALUE = 0.1 ether; //100000000000000000
-//     uint256 constant STARTING_BALANCE = 10 ether;
-//     uint256 constant GOAL = 5 ether;
-//     uint256 constant DURATION = 60;
-//     uint256 constant BPS = 10_000;
-//     uint256 constant PLATFORM_FEE_BPS = 200;
-//     uint256 constant REFUND_FEE_BPS = 100;
-//     uint8 constant DECIMALS = 8;
-//     int256 constant ETHPRICE = 2000e8; // $2000
+    uint256 constant SEND_VALUE = 0.1 ether; //100000000000000000
+    uint256 constant STARTING_BALANCE = 10 ether;
 
-//     function setUp() external {
-//         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE); // 2000 USD with 8 decimals
-//         fundMe = new FundMe(address(mockPriceFeed), GOAL, FEE_RECIPIENT, PLATFORM_FEE_BPS, REFUND_FEE_BPS, DURATION);
-//         vm.deal(USER, STARTING_BALANCE);
-//         vm.deal(USER2, STARTING_BALANCE);
-//         vm.deal(USER3, STARTING_BALANCE);
-//     }
+    uint256 constant GOAL_USD = 10_000e18;
+    uint256 constant MINIMUM_USD = 5e18;
 
-//     function testFuzz_FundWorks(uint256 amount) public {
-//         //0.0025 ether is 5 dollars with 18 dec
-//         amount = bound(amount, 0.0025 ether, 10 ether);
+    uint256 constant GOAL_ETH = 5 ether;
+    uint256 constant MINIMUM_ETH = 0.0025 ether;
 
-//         vm.deal(USER, amount);
+    uint256 constant DURATION = 60;
+    uint256 constant BPS = 10_000;
+    uint256 constant PLATFORM_FEE_BPS = 200;
+    uint256 constant REFUND_FEE_BPS = 100;
+    uint8 constant DECIMALS = 8;
+    int256 constant ETHPRICE = 2000e8; // $2000
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+    function setUp() external {
+        mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE); // 2000 USD with 8 decimals
+        fundMe = new FundMe(
+            address(mockPriceFeed), MINIMUM_USD, GOAL_USD, FEE_RECIPIENT, PLATFORM_FEE_BPS, REFUND_FEE_BPS, DURATION
+        );
+        vm.deal(USER, STARTING_BALANCE);
+        vm.deal(USER2, STARTING_BALANCE);
+        vm.deal(USER3, STARTING_BALANCE);
+    }
 
-//         assertEq(fundMe.getAddressToAmountFunded(USER), amount);
-//     }
+    function testFuzz_FundWorks(uint256 amount) public {
+        //0.0025 ether is 5 dollars with 18 dec
+        amount = bound(amount, 0.0025 ether, 10 ether);
 
-//     function testFuzz_FundRevertsIfTooSmall(uint256 amount) public {
-//         amount = bound(amount, 1 wei, 0.0024 ether);
+        vm.deal(USER, amount);
 
-//         vm.deal(USER, amount);
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         vm.prank(USER);
-//         vm.expectRevert();
-//         fundMe.fund{value: amount}();
-//     }
+        assertEq(fundMe.getAddressToAmountFunded(USER), amount);
+    }
 
-//     function testFuzz_FundAccumulates(uint256 amountA, uint256 amountB) public {
-//         uint256 MIN_ETH = 0.0025 ether;
+    function testFuzz_FundRevertsIfTooSmall(uint256 amount) public {
+        amount = bound(amount, 1 wei, 0.0024 ether);
 
-//         amountA = bound(amountA, MIN_ETH, 2 ether);
-//         amountB = bound(amountB, MIN_ETH, 2 ether);
+        vm.deal(USER, amount);
 
-//         vm.assume(amountA + amountB < GOAL);
+        vm.prank(USER);
+        vm.expectRevert();
+        fundMe.fund{value: amount}();
+    }
 
-//         vm.deal(USER, amountA + amountB);
+    function testFuzz_FundAccumulates(uint256 amountA, uint256 amountB) public {
+        uint256 MIN_ETH = 0.0025 ether;
 
-//         vm.startPrank(USER);
+        amountA = bound(amountA, MIN_ETH, 2 ether);
+        amountB = bound(amountB, MIN_ETH, 2 ether);
 
-//         fundMe.fund{value: amountA}();
-//         fundMe.fund{value: amountB}();
+        vm.assume(amountA + amountB < GOAL);
 
-//         vm.stopPrank();
+        vm.deal(USER, amountA + amountB);
 
-//         assertEq(fundMe.getAddressToAmountFunded(USER), amountA + amountB);
-//     }
+        vm.startPrank(USER);
 
-//     function testFuzz_MultipleUsersFunding(uint256 amountA, uint256 amountB) public {
-//         uint256 MIN_ETH = 0.0025 ether;
+        fundMe.fund{value: amountA}();
+        fundMe.fund{value: amountB}();
 
-//         amountA = bound(amountA, MIN_ETH, 2 ether);
-//         amountB = bound(amountB, MIN_ETH, 2 ether);
+        vm.stopPrank();
 
-//         vm.deal(USER, amountA);
-//         vm.deal(USER2, amountB);
+        assertEq(fundMe.getAddressToAmountFunded(USER), amountA + amountB);
+    }
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amountA}();
+    function testFuzz_MultipleUsersFunding(uint256 amountA, uint256 amountB) public {
+        uint256 MIN_ETH = 0.0025 ether;
 
-//         vm.prank(USER2);
-//         fundMe.fund{value: amountB}();
+        amountA = bound(amountA, MIN_ETH, 2 ether);
+        amountB = bound(amountB, MIN_ETH, 2 ether);
 
-//         assertEq(fundMe.getAddressToAmountFunded(USER), amountA);
-//         assertEq(fundMe.getAddressToAmountFunded(USER2), amountB);
-//     }
+        vm.deal(USER, amountA);
+        vm.deal(USER2, amountB);
 
-//     /*//////////////////////////////////////////////////////////////
-//                               REFUND FUZZ
-//     //////////////////////////////////////////////////////////////*/
-//     function testFuzz_RefundWorks(uint256 amount) public {
-//         uint256 MIN_ETH = 0.0025 ether;
+        vm.prank(USER);
+        fundMe.fund{value: amountA}();
 
-//         amount = bound(amount, MIN_ETH, 2 ether);
+        vm.prank(USER2);
+        fundMe.fund{value: amountB}();
 
-//         vm.deal(USER, amount);
+        assertEq(fundMe.getAddressToAmountFunded(USER), amountA);
+        assertEq(fundMe.getAddressToAmountFunded(USER2), amountB);
+    }
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+    /*//////////////////////////////////////////////////////////////
+                              REFUND FUZZ
+    //////////////////////////////////////////////////////////////*/
+    function testFuzz_RefundWorks(uint256 amount) public {
+        uint256 MIN_ETH = 0.0025 ether;
 
-//         // move time forward (deadline passed)
-//         vm.warp(block.timestamp + 2 days);
+        amount = bound(amount, MIN_ETH, 2 ether);
 
-//         uint256 userBalanceBefore = USER.balance;
-//         uint256 feeRecipientBefore = FEE_RECIPIENT.balance;
+        vm.deal(USER, amount);
 
-//         vm.prank(USER);
-//         fundMe.refund();
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         uint256 fee = (amount * REFUND_FEE_BPS) / BPS;
-//         uint256 refundAmount = amount - fee;
+        // move time forward (deadline passed)
+        vm.warp(block.timestamp + 2 days);
 
-//         assertEq(USER.balance, userBalanceBefore + refundAmount);
-//         assertEq(FEE_RECIPIENT.balance, feeRecipientBefore + fee);
-//     }
+        uint256 userBalanceBefore = USER.balance;
+        uint256 feeRecipientBefore = FEE_RECIPIENT.balance;
 
-//     function testFuzz_RefundRevertsIfNoFunds(uint256 amount) public {
-//         amount = bound(amount, 0.0025 ether, 2 ether);
+        vm.prank(USER);
+        fundMe.refund();
 
-//         vm.warp(block.timestamp + 2 days);
+        uint256 fee = (amount * REFUND_FEE_BPS) / BPS;
+        uint256 refundAmount = amount - fee;
 
-//         vm.prank(USER);
-//         vm.expectRevert();
-//         fundMe.refund();
-//     }
+        assertEq(USER.balance, userBalanceBefore + refundAmount);
+        assertEq(FEE_RECIPIENT.balance, feeRecipientBefore + fee);
+    }
 
-//     function testFuzz_RefundRevertsBeforeDeadline(uint256 amount) public {
-//         uint256 MIN_ETH = 0.0025 ether;
+    function testFuzz_RefundRevertsIfNoFunds(uint256 amount) public {
+        amount = bound(amount, 0.0025 ether, 2 ether);
 
-//         amount = bound(amount, MIN_ETH, 2 ether);
+        vm.warp(block.timestamp + 2 days);
 
-//         vm.deal(USER, amount);
+        vm.prank(USER);
+        vm.expectRevert();
+        fundMe.refund();
+    }
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+    function testFuzz_RefundRevertsBeforeDeadline(uint256 amount) public {
+        uint256 MIN_ETH = 0.0025 ether;
 
-//         // NO warp → still active
+        amount = bound(amount, MIN_ETH, 2 ether);
 
-//         vm.prank(USER);
-//         vm.expectRevert(); // Deadline not passed
-//         fundMe.refund();
-//     }
+        vm.deal(USER, amount);
 
-//     function testFuzz_RefundOnlyOnce(uint256 amount) public {
-//         uint256 MIN_ETH = 0.0025 ether;
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         amount = bound(amount, MIN_ETH, 2 ether);
+        // NO warp → still active
 
-//         vm.deal(USER, amount);
+        vm.prank(USER);
+        vm.expectRevert(); // Deadline not passed
+        fundMe.refund();
+    }
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+    function testFuzz_RefundOnlyOnce(uint256 amount) public {
+        uint256 MIN_ETH = 0.0025 ether;
 
-//         vm.warp(block.timestamp + 2 days);
+        amount = bound(amount, MIN_ETH, 2 ether);
 
-//         vm.startPrank(USER);
+        vm.deal(USER, amount);
 
-//         fundMe.refund();
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         vm.expectRevert(); // second refund should fail
-//         fundMe.refund();
+        vm.warp(block.timestamp + 2 days);
 
-//         vm.stopPrank();
-//     }
+        vm.startPrank(USER);
 
-//     function testFuzz_WithdrawWorks(uint256 amount) public {
-//         amount = bound(amount, GOAL, 10 ether);
+        fundMe.refund();
 
-//         vm.deal(USER, amount);
+        vm.expectRevert(); // second refund should fail
+        fundMe.refund();
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+        vm.stopPrank();
+    }
 
-//         address owner = fundMe.getOwner();
+    function testFuzz_WithdrawWorks(uint256 amount) public {
+        amount = bound(amount, GOAL, 10 ether);
 
-//         uint256 ownerBalanceBefore = owner.balance;
-//         uint256 feeRecipientBefore = FEE_RECIPIENT.balance;
+        vm.deal(USER, amount);
 
-//         vm.prank(owner);
-//         fundMe.ownerWithdraw(0); // assuming full withdraw
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         uint256 fee = (amount * PLATFORM_FEE_BPS) / BPS;
-//         uint256 payout = amount - fee;
+        address owner = fundMe.getOwner();
 
-//         assertEq(owner.balance, ownerBalanceBefore + payout);
-//         assertEq(FEE_RECIPIENT.balance, feeRecipientBefore + fee);
-//     }
+        uint256 ownerBalanceBefore = owner.balance;
+        uint256 feeRecipientBefore = FEE_RECIPIENT.balance;
 
-//     function testFuzz_WithdrawOnlyOwner(uint256 amount) public {
-//         amount = bound(amount, GOAL, 10 ether);
+        vm.prank(owner);
+        fundMe.ownerWithdraw(0); // assuming full withdraw
 
-//         vm.deal(USER, amount);
+        uint256 fee = (amount * PLATFORM_FEE_BPS) / BPS;
+        uint256 payout = amount - fee;
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+        assertEq(owner.balance, ownerBalanceBefore + payout);
+        assertEq(FEE_RECIPIENT.balance, feeRecipientBefore + fee);
+    }
 
-//         vm.prank(USER); // NOT owner
-//         vm.expectRevert();
-//         fundMe.ownerWithdraw(0);
-//     }
+    function testFuzz_WithdrawOnlyOwner(uint256 amount) public {
+        amount = bound(amount, GOAL, 10 ether);
 
-//     function testFuzz_WithdrawFailsIfNotSuccessful(uint256 amount) public {
-//         amount = bound(amount, 0.0025 ether, GOAL - 1);
+        vm.deal(USER, amount);
 
-//         vm.deal(USER, amount);
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+        vm.prank(USER); // NOT owner
+        vm.expectRevert();
+        fundMe.ownerWithdraw(0);
+    }
 
-//         address owner = fundMe.getOwner();
+    function testFuzz_WithdrawFailsIfNotSuccessful(uint256 amount) public {
+        amount = bound(amount, 0.0025 ether, GOAL - 1);
 
-//         vm.prank(owner);
-//         vm.expectRevert();
-//         fundMe.ownerWithdraw(0);
-//     }
+        vm.deal(USER, amount);
 
-//     function testFuzz_WithdrawOnlyOnce(uint256 amount) public {
-//         amount = bound(amount, GOAL, 10 ether);
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         vm.deal(USER, amount);
+        address owner = fundMe.getOwner();
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+        vm.prank(owner);
+        vm.expectRevert();
+        fundMe.ownerWithdraw(0);
+    }
 
-//         address owner = fundMe.getOwner();
+    function testFuzz_WithdrawOnlyOnce(uint256 amount) public {
+        amount = bound(amount, GOAL, 10 ether);
 
-//         vm.startPrank(owner);
+        vm.deal(USER, amount);
 
-//         fundMe.ownerWithdraw(0);
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         vm.expectRevert(); // second withdraw should fail
-//         fundMe.ownerWithdraw(0);
+        address owner = fundMe.getOwner();
 
-//         vm.stopPrank();
-//     }
+        vm.startPrank(owner);
 
-//     function testFuzz_WithdrawFeeMath(uint256 amount) public {
-//         amount = bound(amount, GOAL, 10 ether);
+        fundMe.ownerWithdraw(0);
 
-//         vm.deal(USER, amount);
+        vm.expectRevert(); // second withdraw should fail
+        fundMe.ownerWithdraw(0);
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+        vm.stopPrank();
+    }
 
-//         address owner = fundMe.getOwner();
+    function testFuzz_WithdrawFeeMath(uint256 amount) public {
+        amount = bound(amount, GOAL, 10 ether);
 
-//         uint256 ownerBefore = owner.balance;
-//         uint256 feeBefore = FEE_RECIPIENT.balance;
+        vm.deal(USER, amount);
 
-//         vm.prank(owner);
-//         fundMe.ownerWithdraw(0);
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
 
-//         uint256 expectedFee = (amount * PLATFORM_FEE_BPS) / BPS;
-//         uint256 expectedPayout = amount - expectedFee;
+        address owner = fundMe.getOwner();
 
-//         uint256 ownerAfter = owner.balance;
-//         uint256 feeAfter = FEE_RECIPIENT.balance;
+        uint256 ownerBefore = owner.balance;
+        uint256 feeBefore = FEE_RECIPIENT.balance;
 
-//         assertEq(ownerAfter - ownerBefore, expectedPayout);
-//         assertEq(feeAfter - feeBefore, expectedFee);
-//     }
+        vm.prank(owner);
+        fundMe.ownerWithdraw(0);
 
-//     /*//////////////////////////////////////////////////////////////
-//                            WITHDRAW EDGE FUZZ
-//     //////////////////////////////////////////////////////////////*/
-//     function testFuzz_WithdrawWithNoFundsReverts() public {
-//         address owner = fundMe.getOwner();
+        uint256 expectedFee = (amount * PLATFORM_FEE_BPS) / BPS;
+        uint256 expectedPayout = amount - expectedFee;
 
-//         vm.prank(owner);
-//         vm.expectRevert();
-//         fundMe.ownerWithdraw(0);
-//     }
+        uint256 ownerAfter = owner.balance;
+        uint256 feeAfter = FEE_RECIPIENT.balance;
 
-//     function testFuzz_WithdrawAtExactGoal() public {
-//         uint256 amount = GOAL;
+        assertEq(ownerAfter - ownerBefore, expectedPayout);
+        assertEq(feeAfter - feeBefore, expectedFee);
+    }
 
-//         vm.deal(USER, amount);
+    /*//////////////////////////////////////////////////////////////
+                           WITHDRAW EDGE FUZZ
+    //////////////////////////////////////////////////////////////*/
+    function testFuzz_WithdrawWithNoFundsReverts() public {
+        address owner = fundMe.getOwner();
 
-//         vm.prank(USER);
-//         fundMe.fund{value: amount}();
+        vm.prank(owner);
+        vm.expectRevert();
+        fundMe.ownerWithdraw(0);
+    }
 
-//         address owner = fundMe.getOwner();
+    function testFuzz_WithdrawAtExactGoal() public {
+        uint256 amount = GOAL;
 
-//         vm.prank(owner);
-//         fundMe.ownerWithdraw(0);
+        vm.deal(USER, amount);
 
-//         assertEq(address(fundMe).balance, 0);
-//     }
-// }
+        vm.prank(USER);
+        fundMe.fund{value: amount}();
+
+        address owner = fundMe.getOwner();
+
+        vm.prank(owner);
+        fundMe.ownerWithdraw(0);
+
+        assertEq(address(fundMe).balance, 0);
+    }
+}

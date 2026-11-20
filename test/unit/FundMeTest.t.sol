@@ -185,34 +185,6 @@ contract FundMeTest is Test {
         assertEq(fundMe.getAddressToAmountFunded(USER2), 2 ether);
     }
 
-    //     // function testFallbackReentrancyDoesNotBreakAccounting() public {
-    //     // MaliciousFunder attacker = new MaliciousFunder(address(fundMe));
-
-    //     // vm.deal(address(attacker), 5 ether);
-
-    //     // vm.prank(address(attacker));
-    //     // attacker.attack{value: 1 ether}();
-
-    //     // // Assert
-    //     // uint256 fundedAmount = fundMe.getAddressToAmountFunded(address(attacker));
-
-    //     // // Should reflect actual contributions, not corrupted
-    //     // assertGt(fundedAmount, 0);
-
-    //     // // Ensure contract balance is consistent
-    //     // assertEq(address(fundMe).balance, fundedAmount);
-    //     // }
-
-    //     // function testPriceFeedVersionIsAccurate() public view {
-    //     //     if (block.chainid == 11155111) {
-    //     //         uint256 version = fundMe.getVersion();
-    //     //         assertEq(version, 4);
-    //     //     } else if (block.chainid == 1) {
-    //     //         uint256 version = fundMe.getVersion();
-    //     //         assertEq(version, 6);
-    //     //     }
-    //     // }
-
     ///////////////////////////////////////////
     ///         FINALIZATION TESTS           ///
     ///////////////////////////////////////////
@@ -274,22 +246,21 @@ contract FundMeTest is Test {
         fundMe.ownerWithdraw(address(fundMe).balance + 1);
     }
 
-        function testOwnerWithdrawZeroAmountUsesFullBalance() public fullGoalFunded {
-            vm.prank(fundMe.getOwner());
-            fundMe.ownerWithdraw(0);
+    function testOwnerWithdrawZeroAmountUsesFullBalance() public fullGoalFunded {
+        fundMe.ownerWithdraw(0);
 
-            assertEq(address(fundMe).balance, 0);
-        }
+        assertEq(address(fundMe).balance, 0);
+    }
 
-        function testPartialWithdrawWorks() public fullGoalFunded {
-            uint256 withdrawAmount = 2 ether;
+    function testPartialWithdrawWorks() public fullGoalFunded {
+        uint256 withdrawAmount = 2 ether;
 
-            fundMe.ownerWithdraw(withdrawAmount);
+        fundMe.ownerWithdraw(withdrawAmount);
 
-            assertEq(address(fundMe).balance, 3 ether);
-        }
+        assertEq(address(fundMe).balance, 3 ether);
+    }
 
-        function testWithdrawDeductsCorrectPlatformFee() public fullGoalFunded{
+    function testWithdrawDeductsCorrectPlatformFee() public fullGoalFunded {
         uint256 feeBefore = FEE_RECIPIENT.balance;
 
         fundMe.ownerWithdraw(0);
@@ -300,7 +271,7 @@ contract FundMeTest is Test {
         assertEq(actualFee, expectedFee);
     }
 
-    function testWithdrawPaysOwnerCorrectAmount() public fullGoalFunded{
+    function testWithdrawPaysOwnerCorrectAmount() public fullGoalFunded {
         uint256 ownerBalanceBefore = address(this).balance;
 
         fundMe.ownerWithdraw(0);
@@ -312,9 +283,9 @@ contract FundMeTest is Test {
     }
 
     function testWithdrawRevertsIfNotSuccessful() public userFunded {
-            vm.expectRevert(FundMe.FundMe__NotSuccessful.selector);
-            fundMe.ownerWithdraw(0);
-        }
+        vm.expectRevert(FundMe.FundMe__NotSuccessful.selector);
+        fundMe.ownerWithdraw(0);
+    }
 
     //     function testWithdrawExactFeeAndPayout() public fullGoalFunded {
     //         // Arrange
@@ -346,220 +317,223 @@ contract FundMeTest is Test {
     //         assertEq(payout + actualFee, contractBalanceBefore);
     //     }
 
-    //     function testWithdrawFailsIfFeeTransferFails() public {
-    //         RevertingReceiver badRecipient = new RevertingReceiver();
+    function testWithdrawFailsIfFeeTransferFails() public {
+        RevertingReceiver badRecipient = new RevertingReceiver();
 
-    //         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE);
-    //         FundMe badFundMe =
-    //             new FundMe(address(mockPriceFeed), GOAL, address(badRecipient), PLATFORM_FEE_BPS, REFUND_FEE_BPS, DURATION);
+        FundMe badFundMe = new FundMe(
+            address(mockPriceFeed),
+            MINIMUM_USD,
+            GOAL_USD,
+            address(badRecipient),
+            PLATFORM_FEE_BPS,
+            REFUND_FEE_BPS,
+            DURATION
+        );
 
-    //         vm.prank(USER);
-    //         badFundMe.fund{value: GOAL}();
+        vm.prank(USER);
+        badFundMe.fund{value: GOAL_ETH}();
 
-    //         vm.expectRevert(FundMe__WithdrawFailed.selector);
-    //         badFundMe.ownerWithdraw(0);
-    //     }
+        vm.expectRevert(FundMe.FundMe__WithdrawFailed.selector);
+        badFundMe.ownerWithdraw(0);
+    }
 
-   ///////////////////////////////////////////
+    ///////////////////////////////////////////
     ///             REFUND TESTS             ///
     ///////////////////////////////////////////
-    //     function testCannotRefundIfGoalReached() public fullGoalFunded {
-    //         vm.prank(USER);
-    //         vm.expectRevert();
-    //         fundMe.refund();
-    //     }
+    function testCannotRefundBeforeDeadline() public {
+        vm.prank(USER);
+        vm.expectRevert(FundMe.FundMe__DeadlineNotYetPleaseWait.selector);
+        fundMe.refund();
+    }
 
-    //     function testCannotRefundBeforeDeadline() public userFunded {
-    //         vm.prank(USER);
-    //         vm.expectRevert();
-    //         fundMe.refund();
-    //     }
+    function testCannotRefundIfGoalReached() public fullGoalFunded {
+        vm.prank(USER);
+        vm.expectRevert(FundMe.FundMe__GoalReached.selector);
+        fundMe.refund();
+    }
 
-    //     function testCannotRefundIfUserNeverFunded() public {
-    //         vm.warp(block.timestamp + 30 days + 1); // move past deadline
-    //         vm.prank(USER);
-    //         vm.expectRevert();
-    //         fundMe.refund();
-    //     }
+    function testCannotRefundIfUserNeverFunded() public {
+        vm.warp(fundMe.i_deadline() + 1); // move past deadline
+        vm.prank(USER);
+        vm.expectRevert(FundMe.FundMe__NoFundsToWithdraw.selector);
+        fundMe.refund();
+    }
 
-    //     function testRefundAtExactDeadline() public userFunded {
-    //         vm.warp(fundMe.i_deadline()); // exact deadline
+    function testRefundAtExactDeadlineWorks() public userFunded {
+        vm.warp(fundMe.i_deadline()); // exact deadline
 
-    //         vm.prank(USER);
-    //         fundMe.refund(); // should PASS
-    //     }
+        vm.prank(USER);
+        fundMe.refund(); // should PASS
+    }
 
-    //     function testRefundWorksAfterFailure() public userFunded {
-    //         uint256 userBalanceBeforeRefund = address(USER).balance;
+    function testRefundWorksAfterFailure() public {
+        vm.prank(USER);
+        fundMe.fund{value: 1 ether}();
 
-    //         vm.warp(block.timestamp + 30 days + 1);
+        uint256 userBefore = USER.balance;
 
-    //         vm.prank(USER);
-    //         fundMe.refund();
+        vm.warp(fundMe.i_deadline() + 1); //past deadline
 
-    //         uint256 userBalanceAfterRefund = address(USER).balance;
-    //         uint256 afterBeingFunded = fundMe.getAddressToAmountFunded(USER);
+        vm.prank(USER);
+        fundMe.refund();
 
-    //         assertGt(userBalanceAfterRefund, userBalanceBeforeRefund);
-    //         assertEq(afterBeingFunded, 0);
-    //     }
+        uint256 userAfter = USER.balance;
 
-    //     // fee logic
-    //     function testRefundDeductsCorrectFee() public userFunded {
-    //         uint256 amountFunded = fundMe.getAddressToAmountFunded(USER);
+        assertEq(userAfter - userBefore, 0.99 ether);
+        assertEq(fundMe.getAddressToAmountFunded(USER), 0);
+        assertEq(address(fundMe).balance, 0);
+    }
 
-    //         uint256 feeRecipientBefore = address(FEE_RECIPIENT).balance;
-    //         uint256 userBefore = address(USER).balance;
+    function testRefundDeductsCorrectFee() public {
+        vm.prank(USER);
+        fundMe.fund{value: 1 ether}();
 
-    //         vm.warp(block.timestamp + 30 days + 1);
+        uint256 RecipientFeeBalanceBefore = FEE_RECIPIENT.balance;
 
-    //         vm.prank(USER);
-    //         fundMe.refund();
+        vm.warp(fundMe.i_deadline() + 1);
 
-    //         uint256 feeRecipientAfter = address(FEE_RECIPIENT).balance;
-    //         uint256 userAfter = address(USER).balance;
+        vm.prank(USER);
+        fundMe.refund();
 
-    //         // Calculate expected fee
-    //         uint256 expectedFee = (amountFunded * REFUND_FEE_BPS) / 10_000;
-    //         uint256 expectedRefund = amountFunded - expectedFee;
+        uint256 RecipientFeeBalanceAfter = FEE_RECIPIENT.balance;
 
-    //         // Actual values
-    //         uint256 actualFee = feeRecipientAfter - feeRecipientBefore;
-    //         uint256 actualRefund = userAfter - userBefore;
+        uint256 actualFee = RecipientFeeBalanceAfter - RecipientFeeBalanceBefore;
+        uint256 expectedFee = Math.mulDiv(1 ether, REFUND_FEE_BPS, BPS);
 
-    //         //Exact fee check
-    //         assertEq(actualFee, expectedFee);
+        assertEq(actualFee, expectedFee);
+    }
 
-    //         //Exact refund check
-    //         assertEq(actualRefund, expectedRefund);
-    //     }
+    function testCannotRefundTwice() public userFunded {
+        vm.warp(fundMe.i_deadline() + 1);
 
-    //     function testCannotRefundTwice() public userFunded {
-    //         vm.warp(block.timestamp + 30 days + 1);
+        vm.prank(USER);
+        fundMe.refund();
 
-    //         vm.prank(USER);
-    //         fundMe.refund();
+        vm.prank(USER);
+        vm.expectRevert();
+        fundMe.refund();
+    }
 
-    //         vm.prank(USER);
-    //         vm.expectRevert();
-    //         fundMe.refund();
-    //     }
+    function testMultipleUsersRefundCorrectly() public {
+        vm.prank(USER);
+        fundMe.fund{value: 1 ether}();
 
-    //     function testRefundUpdatesContractBalanceCorrectly() public userFunded {
-    //         uint256 contractBalanceBefore = address(fundMe).balance;
-    //         uint256 amountFunded = fundMe.getAddressToAmountFunded(USER);
-    //         uint256 feeRecipientBefore = address(FEE_RECIPIENT).balance;
-    //         uint256 userBalanceBefore = address(USER).balance;
+        vm.prank(USER2);
+        fundMe.fund{value: 2 ether}();
 
-    //         (uint256 expectedFee, uint256 expectedRefund) = getExpectedRefund(amountFunded);
+        uint256 feeBalBefore = FEE_RECIPIENT.balance;
 
-    //         vm.warp(block.timestamp + 30 days + 1);
+        vm.warp(fundMe.i_deadline());
 
-    //         vm.prank(USER);
-    //         fundMe.refund();
+        vm.prank(USER);
+        fundMe.refund();
 
-    //         uint256 contractBalanceAfter = address(fundMe).balance;
-    //         uint256 feeRecipientAfter = address(FEE_RECIPIENT).balance;
-    //         uint256 userBalanceAfter = address(USER).balance;
+        vm.prank(USER2);
+        fundMe.refund();
 
-    //         uint256 actualFee = feeRecipientAfter - feeRecipientBefore;
-    //         uint256 actualRefund = userBalanceAfter - userBalanceBefore;
+        uint256 expectedFees = Math.mulDiv(3 ether, REFUND_FEE_BPS, BPS);
 
-    //         assertEq(actualFee, expectedFee);
-    //         assertEq(actualRefund, expectedRefund);
-    //         assertEq(contractBalanceBefore - contractBalanceAfter, amountFunded);
-    //         assertEq(expectedFee + expectedRefund, amountFunded);
-    //         assertEq(contractBalanceAfter, 0);
-    //     }
+        uint256 feeBalAfter = FEE_RECIPIENT.balance;
 
-    //     function testMultipleUsersRefundCorrectly() public {
-    //         // both users fund
-    //         vm.prank(USER);
-    //         fundMe.fund{value: 1 ether}();
+        assertEq(feeBalAfter - feeBalBefore, expectedFees);
+        assertEq(address(fundMe).balance, 0);
+        assertEq(fundMe.getAddressToAmountFunded(USER), 0);
+        assertEq(fundMe.getAddressToAmountFunded(USER2), 0);
+    }
 
-    //         vm.prank(USER2);
-    //         fundMe.fund{value: 2 ether}();
+    function testRefundUpdatesPlatformFeesAccounting() public {
+        vm.prank(USER);
+        fundMe.fund{value: 1 ether}();
+        vm.warp(fundMe.i_deadline());
 
-    //         uint256 totalFunded = 3 ether;
+        vm.prank(USER);
+        fundMe.refund();
 
-    //         // Expected refunds
-    //         (uint256 fee1, uint256 refund1) = getExpectedRefund(1 ether);
-    //         (uint256 fee2, uint256 refund2) = getExpectedRefund(2 ether);
+        assertEq(fundMe.getPlatformFeesCollected(), 0.01 ether);
+    }
 
-    //         uint256 feeRecipientBefore = address(FEE_RECIPIENT).balance;
+    function testRefundFailsIfFeeTransferFails() public {
+        RevertingReceiver badRecipient = new RevertingReceiver();
 
-    //         vm.warp(block.timestamp + 30 days + 1); // time has passed & GOAL not reached
+        // Deploy new FundMe with malicious fee recipient
+        mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE);
+        FundMe badFundMe = new FundMe(
+            address(mockPriceFeed),
+            MINIMUM_USD,
+            GOAL_USD,
+            address(badRecipient),
+            PLATFORM_FEE_BPS,
+            REFUND_FEE_BPS,
+            DURATION
+        );
 
-    //         // Both users refund
-    //         vm.prank(USER);
-    //         fundMe.refund();
+        vm.prank(USER);
+        badFundMe.fund{value: 1 ether}();
 
-    //         vm.prank(USER2);
-    //         fundMe.refund();
+        vm.warp(badFundMe.i_deadline() + 1);
 
-    //         // Assrt
-    //         uint256 contractBalanceAfter = address(fundMe).balance;
-    //         uint256 feeRecipientAfter = address(FEE_RECIPIENT).balance;
+        vm.prank(USER);
+        vm.expectRevert(FundMe.FundMe__RefundFailed.selector);
+        badFundMe.refund();
+    }
 
-    //         uint256 totalFees = feeRecipientAfter - feeRecipientBefore;
+    function testRefundUpdatesContractBalanceCorrectly() public userFunded {
+        // Arrange
+        uint256 contractBalanceBefore = address(fundMe).balance;
+        uint256 amountFunded = fundMe.getAddressToAmountFunded(USER);
 
-    //         // did all funds leave the contract?
-    //         assertEq(contractBalanceAfter, 0);
+        uint256 feeRecipientBefore = FEE_RECIPIENT.balance;
+        uint256 userBalanceBefore = USER.balance;
 
-    //         //total fees collected
-    //         assertEq(totalFees, fee1 + fee2);
+        (uint256 expectedFee, uint256 expectedRefund) = _getExpectedRefund(amountFunded);
 
-    //         assertEq(totalFunded, refund1 + refund2 + fee1 + fee2);
+        // Act
+        vm.warp(fundMe.i_deadline());
 
-    //         assertEq(fundMe.getAddressToAmountFunded(USER), 0);
-    //         assertEq(fundMe.getAddressToAmountFunded(USER2), 0);
-    //     }
+        vm.prank(USER);
+        fundMe.refund();
 
-    //     function testRefundFailsIfFeeTransferFails() public {
-    //         RevertingReceiver badRecipient = new RevertingReceiver();
+        uint256 contractBalanceAfter = address(fundMe).balance;
+        uint256 feeRecipientAfter = FEE_RECIPIENT.balance;
+        uint256 userBalanceAfter = USER.balance;
 
-    //         // Deploy new FundMe with malicious fee recipient
-    //         mockPriceFeed = new MockV3Aggregator(DECIMALS, ETHPRICE);
-    //         FundMe badFundMe =
-    //             new FundMe(address(mockPriceFeed), GOAL, address(badRecipient), PLATFORM_FEE_BPS, REFUND_FEE_BPS, DURATION);
+        uint256 actualFee = feeRecipientAfter - feeRecipientBefore;
+        uint256 actualRefund = userBalanceAfter - userBalanceBefore;
 
-    //         vm.deal(USER, 10 ether);
+        // Assert
+        assertEq(actualFee, expectedFee);
+        assertEq(actualRefund, expectedRefund);
 
-    //         vm.prank(USER);
-    //         badFundMe.fund{value: 1 ether}();
-
-    //         vm.warp(block.timestamp + 30 days + 1);
-
-    //         vm.prank(USER);
-    //         vm.expectRevert(FundMe__RefundFailed.selector);
-    //         badFundMe.refund();
-    //     }
+        assertEq(contractBalanceBefore - contractBalanceAfter, amountFunded);
+        assertEq(expectedFee + expectedRefund, amountFunded);
+        assertEq(contractBalanceAfter, 0);
+    }
 
     //     /*//////////////////////////////////////////////////////////////
     //                                 HELPERS
     //     //////////////////////////////////////////////////////////////*/
-    //     function getExpectedRefund(uint256 amount) internal pure returns (uint256 fee, uint256 refund) {
-    //         fee = (amount * REFUND_FEE_BPS) / 10_000;
-    //         refund = amount - fee;
-    //     }
+    function _getExpectedRefund(uint256 amount) internal pure returns (uint256 fee, uint256 refundAmount) {
+        fee = Math.mulDiv(amount, REFUND_FEE_BPS, BPS);
+        refundAmount = amount - fee;
+    }
 
-    //     function testViewFunctionsReturnCorrectState() public userFunded {
-    //         assertEq(fundMe.getTotalAmountFunded(), SEND_VALUE);
-    //         assertEq(fundMe.getAddressToAmountFunded(USER), SEND_VALUE);
-    //         assertGt(fundMe.getDeadline(), block.timestamp);
-    //     }
+    // function testViewFunctionsReturnCorrectState() public userFunded {
+    //     assertEq(fundMe.getTotalAmountFunded(), SEND_VALUE);
+    //     assertEq(fundMe.getAddressToAmountFunded(USER), SEND_VALUE);
+    //     assertGt(fundMe.getDeadline(), block.timestamp);
+    // }
+}
 
-    // /**
-    //  * @author  . Barney
-    //  * @title   . Reverting Receiver Contract for testing refund reversion scenarios
-    //  * @dev     . This contract is designed to simulate a malicious or faulty recipient that reverts on receiving ETH, allowing us to test the refund logic in the FundMe contract under conditions where the fee transfer fails. By using this contract as the fee recipient, we can ensure that our refund function correctly handles reversion scenarios and does not allow users to receive refunds without paying the required fee.
-    //  * @notice  . This contract should be used in conjunction with the FundMe contract's refund function to test the behavior when the fee transfer fails. When the FundMe contract attempts to transfer the fee to this RevertingReceiver, it will revert, allowing us to verify that the refund function properly reverts the entire transaction and does not allow the user to receive a refund without paying the fee.
-    //  */
-    // contract RevertingReceiver {
-    //     //Malicious Contract
-    //     error RevertingReceiver__RevertOnReceive();
+/**
+ * @author  . Barney
+ * @title   . Reverting Receiver Contract for testing refund reversion scenarios
+ * @dev     . This contract is designed to simulate a malicious or faulty recipient that reverts on receiving ETH, allowing us to test the refund logic in the FundMe contract under conditions where the fee transfer fails. By using this contract as the fee recipient, we can ensure that our refund function correctly handles reversion scenarios and does not allow users to receive refunds without paying the required fee.
+ * @notice  . This contract should be used in conjunction with the FundMe contract's refund function to test the behavior when the fee transfer fails. When the FundMe contract attempts to transfer the fee to this RevertingReceiver, it will revert, allowing us to verify that the refund function properly reverts the entire transaction and does not allow the user to receive a refund without paying the fee.
+ */
+contract RevertingReceiver {
+    //Malicious Contract
 
-    //     receive() external payable {
-    //         revert RevertingReceiver__RevertOnReceive();
-    //     }
+    receive() external payable {
+        revert("ETH_REJECTED");
+    }
 }
