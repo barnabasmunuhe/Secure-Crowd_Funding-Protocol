@@ -5,6 +5,7 @@ pragma solidity ^0.8.28;
 import {Test, console} from "forge-std/Test.sol";
 import {FundMe} from "../../src/FundMe.sol";
 import {MockV3Aggregator} from "@chainlink/contracts/src/v0.8/tests/MockV3Aggregator.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract FundMeTest is Test {
     FundMe fundMe;
@@ -50,7 +51,7 @@ contract FundMeTest is Test {
 
     modifier fullGoalFunded() {
         vm.prank(USER);
-        fundMe.fund{value: GOAL_USD}();
+        fundMe.fund{value: GOAL_ETH}();
         _;
     }
 
@@ -75,30 +76,114 @@ contract FundMeTest is Test {
         assertEq(fundMe.i_feeRecipient(), FEE_RECIPIENT);
     }
 
-///////////////////////////////////////////
+    ///////////////////////////////////////////
     ///              FUNDING TESTS           ///
     ///////////////////////////////////////////
-    //     function testReceiveFunctionTriggersFund() public {
-    //         vm.prank(USER3);
-    //         (bool success,) = address(fundMe).call{value: 1 ether}(""); //USER3 didn't call fund() directly, but sent ETH to the contract address, which should trigger the receive function and fund the contract
+    function testPriceFeedAddressIsCorrect() public view {
+        assertEq(fundMe.getPriceFeed(), address(mockPriceFeed));
+    }
 
-    //         assertTrue(success);
-    //         assertEq(fundMe.getAddressToAmountFunded(USER3), 1 ether);
-    //     }
+    function testFundFailsWithoutEnoughETH() public {
+        vm.expectRevert(FundMe.FundMe__SpendMoreEth.selector);
+        fundMe.fund(); //send 0 value
+    }
 
-    //     function testFallbackFunctionTriggersFund() public {
-    //         vm.prank(USER3);
-    //         (bool success,) = address(fundMe).call{value: 2 ether}("0x1234"); // sending data that doesn't match any function signature should trigger the fallback function, which should also fund the contract
+    function testFundRevertsIfBelowMinimum() public {
+        vm.prank(USER);
 
-    //         assertTrue(success);
-    //         assertEq(fundMe.getAddressToAmountFunded(USER3), 2 ether);
-    //     }
+        vm.expectRevert(FundMe.FundMe__SpendMoreEth.selector); // MINIMUM_USD check
+        fundMe.fund{value: 0.002 ether}(); // too small below $5
+    }
 
-    //     function testViewFunctionsReturnCorrectState() public userFunded {
-    //         assertEq(fundMe.getTotalAmountFunded(), SEND_VALUE);
-    //         assertEq(fundMe.getAddressToAmountFunded(USER), SEND_VALUE);
-    //         assertGt(fundMe.getDeadline(), block.timestamp);
-    //     }
+    function testFundUpdatesFundedMapping() public userFunded {
+        assertEq(fundMe.getAddressToAmountFunded(USER), MINIMUM_ETH);
+    }
+
+    function testAddsFunderToArrayOfFunders() public userFunded {
+        assertEq(fundMe.getFunder(0), USER);
+    }
+
+    function testFundUpdatesTotalEthFunded() public userFunded {
+        assertEq(fundMe.getTotalAmountFunded(), MINIMUM_ETH);
+    }
+
+    function testFundUpdatesTotalUsdFunded() public userFunded {
+        assertEq(fundMe.getTotalAmountFundedUsd(), MINIMUM_USD);
+    }
+
+    function testMultipleFunders() public {
+        vm.prank(USER);
+        fundMe.fund{value: MINIMUM_ETH}();
+
+        vm.prank(USER2);
+        fundMe.fund{value: MINIMUM_ETH}();
+
+        assertEq(fundMe.getFunder(0), USER);
+        assertEq(fundMe.getFunder(1), USER2);
+        assertEq(fundMe.getTotalAmountFunded(), 0.005 ether);
+    }
+
+    function testSameFunderIsNotAddedTwice() public {
+        vm.prank(USER);
+        fundMe.fund{value: 1 ether}();
+
+        vm.prank(USER);
+        fundMe.fund{value: 1 ether}();
+
+        assertEq(fundMe.getFunder(0), USER);
+
+        // There should be no second entry.
+        vm.expectRevert();
+        fundMe.getFunder(1);
+    }
+
+    function testGoalReachedChangesState() public {
+        vm.prank(USER);
+        fundMe.fund{value: GOAL_ETH}();
+
+        assertEq(uint256(fundMe.getState()), 1); // SUCCESS
+    }
+
+    function testFundingAfterGoalReachedReverts() public {
+        vm.prank(USER);
+        fundMe.fund{value: GOAL_ETH}();
+
+        vm.prank(USER2);
+        vm.expectRevert(FundMe.FundMe__NotActive.selector);
+        fundMe.fund{value: 1 ether}();
+    }
+
+    function testFundingAtExactDeadlineReverts() public {
+        vm.warp(fundMe.i_deadline());
+
+        vm.prank(USER2);
+        vm.expectRevert(FundMe.FundMe__CampaignEnded.selector);
+        fundMe.fund{value: 1 ether}();
+    }
+
+    function testFundingAfterDeadlineReverts() public {
+        vm.warp(fundMe.i_deadline() + 1);
+
+        vm.prank(USER);
+        vm.expectRevert(FundMe.FundMe__CampaignEnded.selector);
+        fundMe.fund{value: 1 ether}();
+    }
+
+    function testReceiveFunctionTriggersFund() public {
+        vm.prank(USER3);
+        (bool success,) = address(fundMe).call{value: 1 ether}(""); //USER3 didn't call fund() directly, but sent ETH to the contract address, which should trigger the receive function and fund the contract
+
+        assertTrue(success);
+        assertEq(fundMe.getAddressToAmountFunded(USER3), 1 ether);
+    }
+
+    function testFallbackFunctionTriggersFund() public {
+        vm.prank(USER2);
+        (bool success,) = address(fundMe).call{value: 2 ether}("0x1234"); // sending data that doesn't match any function signature should trigger the fallback function, which should also fund the contract
+
+        assertTrue(success);
+        assertEq(fundMe.getAddressToAmountFunded(USER2), 2 ether);
+    }
 
     //     // function testFallbackReentrancyDoesNotBreakAccounting() public {
     //     // MaliciousFunder attacker = new MaliciousFunder(address(fundMe));
@@ -128,114 +213,108 @@ contract FundMeTest is Test {
     //     //     }
     //     // }
 
-    //     function testPriceFeedVersion() public view {
-    //         uint256 version = fundMe.getVersion();
-    //         assertEq(version, 0);
-    //     }
+    ///////////////////////////////////////////
+    ///         FINALIZATION TESTS           ///
+    ///////////////////////////////////////////
+    function testFinalizeCampaignBeforeDeadlineReverts() public {
+        vm.expectRevert(FundMe.FundMe__DeadlineNotYetPleaseWait.selector);
+        fundMe.finalizeCampaign();
+    }
 
-    //     function testFundFailsWithoutEnoughETH() public {
-    //         vm.expectRevert();
-    //         fundMe.fund(); //send 0 value
-    //     }
+    function testFinalizeCampaignAfterDeadlineAndGoalNotReachedSetsFailed() public userFunded {
+        vm.warp(fundMe.i_deadline() + 1);
 
-    //     function testFundRevertsIfBelowMinimum() public {
-    //         vm.prank(USER);
+        fundMe.finalizeCampaign();
 
-    //         vm.expectRevert(); // MINIMUM_USD check
-    //         fundMe.fund{value: 1}(); // too small
-    //     }
+        assertEq(uint256(fundMe.getState()), uint256(FundMe.FundMeState.FAILED));
+    }
 
-    //     function testFundUpdatesFundedMapping() public {
-    //         vm.prank(USER);
-    //         fundMe.fund{value: SEND_VALUE}();
+    function testFinalizeCampaignAtDeadlineAndGoalNotReachedSetsFailed() public {
+        vm.warp(fundMe.i_deadline());
 
-    //         uint256 amountFunded = fundMe.getAddressToAmountFunded(USER);
-    //         assertEq(amountFunded, SEND_VALUE);
-    //     }
+        fundMe.finalizeCampaign();
 
-    //     function testAddsFunderToArrayOfFunders() public {
-    //         vm.prank(USER);
-    //         fundMe.fund{value: SEND_VALUE}();
+        assertEq(uint256(fundMe.getState()), uint256(FundMe.FundMeState.FAILED));
+    }
 
-    //         address funder = fundMe.getFunder(0);
-    //         assertEq(funder, USER);
-    //     }
+    function testCannotFinalizeCampaignTwice() public {
+        vm.warp(fundMe.i_deadline());
+        fundMe.finalizeCampaign();
 
-    //     function testMultipleFunders() public {
-    //         vm.prank(USER);
-    //         fundMe.fund{value: SEND_VALUE}();
+        vm.expectRevert(FundMe.FundMe__CampaignAlreadyFinalized.selector);
+        fundMe.finalizeCampaign();
+    }
 
-    //         vm.prank(USER2);
-    //         fundMe.fund{value: SEND_VALUE}();
+    function testCannotFinalizeSuccessfulCampaign() public {
+        vm.prank(USER);
+        fundMe.fund{value: GOAL_ETH}();
 
-    //         assertEq(fundMe.getFunder(0), USER);
-    //         assertEq(fundMe.getFunder(1), USER2);
-    //     }
+        vm.warp(fundMe.i_deadline());
 
-    //     function testGoalReachedChangesState() public {
-    //         vm.prank(USER);
-    //         fundMe.fund{value: GOAL}();
+        vm.expectRevert(FundMe.FundMe__CampaignAlreadyFinalized.selector);
+        fundMe.finalizeCampaign();
+    }
 
-    //         // assuming contract auto-checks goal
-    //         assertEq(uint256(fundMe.getState()), 1); // SUCCESS
-    //     }
+    ///////////////////////////////////////////
+    ///          WITHDRAWAL TESTS            ///
+    ///////////////////////////////////////////
+    function testOnlyOwnerCanWithdrawFunds() public userFunded {
+        vm.prank(USER);
+        vm.expectRevert();
+        fundMe.ownerWithdraw(GOAL_ETH);
+    }
 
-    //     // Withdraw Tests
-    //     function testOnlyOwnerCanWithdrawFunds() public userFunded {
-    //         vm.prank(USER);
-    //         vm.expectRevert();
-    //         fundMe.ownerWithdraw(GOAL);
-    //     }
+    function testWithdrawFailsIfCampaignNotSuccessful() public {
+        vm.expectRevert(FundMe.FundMe__NotSuccessful.selector);
+        fundMe.ownerWithdraw(0);
+    }
 
-    //     function testOwnerWithdrawZeroAmountUsesFullBalance() public fullGoalFunded {
-    //         vm.prank(fundMe.getOwner());
-    //         fundMe.ownerWithdraw(0);
+    function testWithdrawRevertsIfAmountTooHigh() public fullGoalFunded {
+        vm.expectRevert(FundMe.FundMe__InsufficientBalance.selector);
+        fundMe.ownerWithdraw(address(fundMe).balance + 1);
+    }
 
-    //         assertEq(address(fundMe).balance, 0);
-    //     }
+        function testOwnerWithdrawZeroAmountUsesFullBalance() public fullGoalFunded {
+            vm.prank(fundMe.getOwner());
+            fundMe.ownerWithdraw(0);
 
-    //     function testWithdrawWorks() public {
-    //         // Arrange
-    //         vm.prank(USER);
-    //         fundMe.fund{value: GOAL}(); // this will trigger GOAL success
-    //         // Act
-    //         fundMe.ownerWithdraw(0); // full balance withdraw
+            assertEq(address(fundMe).balance, 0);
+        }
 
-    //         uint256 contractBalanceAfter = address(fundMe).balance;
-    //         //Contract drained
-    //         assertEq(contractBalanceAfter, 0);
-    //     }
+        function testPartialWithdrawWorks() public fullGoalFunded {
+            uint256 withdrawAmount = 2 ether;
 
-    //     function testPartialWithdrawWorks() public fullGoalFunded {
-    //         uint256 withdrawAmount = 2 ether;
+            fundMe.ownerWithdraw(withdrawAmount);
 
-    //         fundMe.ownerWithdraw(withdrawAmount);
+            assertEq(address(fundMe).balance, 3 ether);
+        }
 
-    //         assertGt(address(fundMe).balance, 0);
-    //     }
+        function testWithdrawDeductsCorrectPlatformFee() public fullGoalFunded{
+        uint256 feeBefore = FEE_RECIPIENT.balance;
 
-    //     function testWithdrawWorksWithFullSystemLogic() public fullGoalFunded {
-    //         // Arrage
-    //         uint256 ownerBalanceBefore = address(this).balance;
-    //         uint256 feeRecipientBalanceBefore = address(FEE_RECIPIENT).balance;
+        fundMe.ownerWithdraw(0);
 
-    //         // Act
-    //         fundMe.ownerWithdraw(0); //full withdraw
+        uint256 actualFee = FEE_RECIPIENT.balance - feeBefore;
+        uint256 expectedFee = (Math.mulDiv(GOAL_ETH, PLATFORM_FEE_BPS, BPS));
 
-    //         // Assert
-    //         uint256 contractBalanceAfter = address(fundMe).balance;
-    //         uint256 ownerBalanceAfter = address(this).balance;
-    //         uint256 feeRecipientBalanceAfter = address(FEE_RECIPIENT).balance;
+        assertEq(actualFee, expectedFee);
+    }
 
-    //         // contract got draained?
-    //         assertEq(contractBalanceAfter, 0);
+    function testWithdrawPaysOwnerCorrectAmount() public fullGoalFunded{
+        uint256 ownerBalanceBefore = address(this).balance;
 
-    //         // fee recipient got paid?
-    //         assertGt(feeRecipientBalanceAfter, feeRecipientBalanceBefore);
+        fundMe.ownerWithdraw(0);
 
-    //         // owner got paid?
-    //         assertGt(ownerBalanceAfter, ownerBalanceBefore);
-    //     }
+        uint256 ownerBalanceAfter = address(this).balance;
+        uint256 expectedPayout = GOAL_ETH - (Math.mulDiv(GOAL_ETH, PLATFORM_FEE_BPS, BPS));
+
+        assertEq(ownerBalanceAfter - ownerBalanceBefore, expectedPayout);
+    }
+
+    function testWithdrawRevertsIfNotSuccessful() public userFunded {
+            vm.expectRevert(FundMe.FundMe__NotSuccessful.selector);
+            fundMe.ownerWithdraw(0);
+        }
 
     //     function testWithdrawExactFeeAndPayout() public fullGoalFunded {
     //         // Arrange
@@ -267,18 +346,6 @@ contract FundMeTest is Test {
     //         assertEq(payout + actualFee, contractBalanceBefore);
     //     }
 
-    //     function testWithdrawRevertsIfAmountTooHigh() public fullGoalFunded {
-    //         uint256 tooMuch = address(fundMe).balance + 1;
-
-    //         vm.expectRevert(FundMe__InsufficientBalance.selector);
-    //         fundMe.ownerWithdraw(tooMuch);
-    //     }
-
-    //     function testWithdrawRevertsIfNotSuccessful() public userFunded {
-    //         vm.expectRevert(FundMe__NotSuccessful.selector);
-    //         fundMe.ownerWithdraw(0);
-    //     }
-
     //     function testWithdrawFailsIfFeeTransferFails() public {
     //         RevertingReceiver badRecipient = new RevertingReceiver();
 
@@ -293,7 +360,9 @@ contract FundMeTest is Test {
     //         badFundMe.ownerWithdraw(0);
     //     }
 
-    //     // Refund Tests
+   ///////////////////////////////////////////
+    ///             REFUND TESTS             ///
+    ///////////////////////////////////////////
     //     function testCannotRefundIfGoalReached() public fullGoalFunded {
     //         vm.prank(USER);
     //         vm.expectRevert();
@@ -473,7 +542,12 @@ contract FundMeTest is Test {
     //         fee = (amount * REFUND_FEE_BPS) / 10_000;
     //         refund = amount - fee;
     //     }
-    // }
+
+    //     function testViewFunctionsReturnCorrectState() public userFunded {
+    //         assertEq(fundMe.getTotalAmountFunded(), SEND_VALUE);
+    //         assertEq(fundMe.getAddressToAmountFunded(USER), SEND_VALUE);
+    //         assertGt(fundMe.getDeadline(), block.timestamp);
+    //     }
 
     // /**
     //  * @author  . Barney
