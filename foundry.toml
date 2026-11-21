@@ -13,6 +13,15 @@ remappings = [
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
 
+[profile.default.fuzz]
+runs = 1000
+
+[invariant]
+runs = 1000
+depth = 100
+fail_on_revert = true
+show_metrics = true
+
 # ffi = true #means you're allowing foundry to run commands directly on your machine
 #TRY TO KEEP IT OFF AS LONG AS POSSIBLE
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
