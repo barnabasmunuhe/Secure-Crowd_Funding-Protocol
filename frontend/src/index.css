@@ -1,0 +1,602 @@
+
+@import "tailwindcss";
+
+/* =====================================================
+   SECURE CROWDFUNDING PROTOCOL
+   AAVE-INSPIRED DEFI DESIGN SYSTEM
+===================================================== */
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  /* Backgrounds */
+  --bg-primary: #0b0e14;
+  --bg-secondary: #111722;
+  --bg-card: #141c29;
+  --bg-card-hover: #192434;
+  --bg-input: #0d131d;
+
+  /* Borders */
+  --border: #263344;
+  --border-subtle: rgba(148, 163, 184, 0.12);
+
+  /* Typography */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  /* Brand colors */
+  --accent: #a855f7;
+  --accent-hover: #c084fc;
+  --accent-soft: rgba(168, 85, 247, 0.12);
+
+  /* Secondary accent */
+  --teal: #2ebac6;
+  --teal-soft: rgba(46, 186, 198, 0.12);
+
+  /* Status colors */
+  --success: #39c6a5;
+  --warning: #f0b35b;
+  --danger: #f16d78;
+
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+/* =====================================================
+   GLOBAL RESET
+===================================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  min-height: 100%;
+  background: var(--bg-primary);
+}
+
+body {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--bg-primary);
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+a {
+  text-decoration: none;
+}
+
+::selection {
+  color: white;
+  background: var(--accent);
+}
+
+/* =====================================================
+   SCROLLBARS
+===================================================== */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 20px;
+}
+
+/* =====================================================
+   DESKTOP APPLICATION SHELL
+===================================================== */
+
+.app-shell {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+
+  padding: 14px 24px 12px;
+
+  background:
+    radial-gradient(
+      ellipse at 75% 5%,
+      rgba(46, 186, 198, 0.035),
+      transparent 35%
+    ),
+    var(--bg-primary);
+}
+
+.app-container {
+  width: 100%;
+  max-width: 1376px;
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+
+  display: grid;
+
+  grid-template-rows:
+    48px
+    minmax(0, 1fr)
+    320px
+    44px
+    32px;
+
+  gap: 16px;
+}
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.app-header {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* =====================================================
+   CAMPAIGN HERO
+===================================================== */
+
+.app-hero {
+  min-height: 0;
+
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+
+  align-items: center;
+  gap: 28px;
+
+  margin: 0;
+}
+
+/* Campaign progress card */
+
+.app-hero > div:last-child {
+  min-width: 0;
+  padding: 22px;
+
+  border: 1px solid var(--border);
+  border-radius: 24px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #182333 0%,
+      #111722 100%
+    );
+
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.16);
+}
+
+/* Hero title */
+
+.app-hero h2 {
+  font-size: clamp(2.5rem, 3.4vw, 4rem);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+/* Hero spacing */
+
+.app-hero .mt-5 {
+  margin-top: 16px;
+}
+
+.app-hero .mt-6 {
+  margin-top: 18px;
+}
+
+/* Campaign metric cards */
+
+.app-hero .rounded-2xl {
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(148, 163, 184, 0.055);
+}
+
+/* =====================================================
+   CONTRIBUTION AND MANAGEMENT PANELS
+===================================================== */
+
+.app-actions {
+  min-height: 0;
+
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  align-items: stretch;
+  gap: 16px;
+
+  margin: 0;
+}
+
+/* Both panels */
+
+.app-actions > div {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+
+  overflow: hidden;
+
+  padding: 16px 18px;
+
+  border: 1px solid var(--border);
+  border-radius: 24px;
+
+  background: var(--bg-secondary);
+
+  transition:
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.app-actions > div:hover {
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+/* Panel spacing */
+
+.app-actions .mt-5 {
+  margin-top: 12px;
+}
+
+.app-actions .mt-4 {
+  margin-top: 10px;
+}
+
+.app-actions .mt-3 {
+  margin-top: 8px;
+}
+
+.app-actions .mt-2 {
+  margin-top: 6px;
+}
+
+/* Input styling */
+
+.app-actions input {
+  min-width: 0;
+  color: var(--text-primary);
+  background: transparent;
+  outline: none;
+}
+
+.app-actions input::placeholder {
+  color: var(--text-muted);
+}
+
+.app-actions input:focus {
+  outline: none;
+}
+
+/* Remove browser number input arrows */
+
+.app-actions input[type="number"]::-webkit-inner-spin-button,
+.app-actions input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.app-actions input[type="number"] {
+  appearance: textfield;
+}
+
+/* Buttons */
+
+.app-actions button {
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.app-actions button:not(:disabled):active {
+  transform: scale(0.99);
+}
+
+/* =====================================================
+   TRANSACTION STATUS
+===================================================== */
+
+.app-status {
+  min-width: 0;
+  min-height: 0;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+
+  overflow: hidden;
+
+  padding: 10px 18px;
+
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  background: var(--bg-secondary);
+}
+
+.app-status > * {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+/* =====================================================
+   FOOTER
+===================================================== */
+
+.app-footer {
+  min-height: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin: 0;
+  padding: 6px 0;
+
+  border-top: 1px solid var(--border);
+}
+
+/* =====================================================
+   TABLET / SMALL DESKTOP
+===================================================== */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app-shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow-y: auto;
+  }
+
+  .app-container {
+    height: auto;
+    min-height: 100dvh;
+
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .app-hero {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .app-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .app-actions > div {
+    height: auto;
+    overflow: visible;
+    padding: 22px;
+  }
+
+  .app-status {
+    min-height: 54px;
+    overflow: visible;
+  }
+
+  .app-footer {
+    margin-top: auto;
+    padding: 16px 0;
+  }
+}
+
+/* =====================================================
+   SHORT DESKTOP VIEWPORTS
+===================================================== */
+
+@media (min-width: 1024px) and (max-height: 850px) {
+  .app-shell {
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+
+  .app-container {
+    grid-template-rows:
+      42px
+      minmax(0, 1fr)
+      290px
+      40px
+      28px;
+
+    gap: 12px;
+  }
+
+  .app-hero {
+    gap: 20px;
+  }
+
+  .app-hero > div:last-child {
+    padding: 18px;
+  }
+
+  .app-actions > div {
+    padding: 14px 16px;
+  }
+
+  .app-status {
+    padding: 8px 16px;
+  }
+
+  .app-footer {
+    padding: 4px 0;
+  }
+}
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 767px) {
+  .app-shell {
+    width: 100%;
+    height: auto;
+    min-height: 100dvh;
+
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    padding: 20px 16px;
+  }
+
+  .app-container {
+    width: 100%;
+    height: auto;
+    min-height: 100dvh;
+
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  /* Header */
+
+  .app-header {
+    flex-shrink: 0;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Hero */
+
+  .app-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .app-hero h2 {
+    font-size: clamp(2.5rem, 10vw, 3.5rem);
+    line-height: 1.08;
+  }
+
+  .app-hero > div:last-child {
+    padding: 20px;
+  }
+
+  /* Action panels */
+
+  .app-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .app-actions > div {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+
+    overflow: visible;
+
+    padding: 20px;
+  }
+
+  /* Transaction status */
+
+  .app-status {
+    min-height: 54px;
+    overflow: visible;
+
+    padding: 14px;
+  }
+
+  /* Footer */
+
+  .app-footer {
+    margin-top: auto;
+    padding: 18px 0;
+    gap: 12px;
+  }
+}
+
+/* =====================================================
+   VERY SMALL PHONES
+===================================================== */
+
+@media (max-width: 420px) {
+  .app-shell {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .app-header {
+    flex-wrap: wrap;
+  }
+
+  .app-header > div {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .app-hero h2 {
+    font-size: 2.5rem;
+  }
+
+  .app-hero > div:last-child,
+  .app-actions > div {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .app-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* =====================================================
+   ACCESSIBILITY
+===================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
