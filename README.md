@@ -17,7 +17,7 @@ The protocol uses Chainlink Price Feeds to convert ETH contributions into USD va
 
 **Smart Contract:** [View on Sepolia Etherscan](https://sepolia.etherscan.io/address/0x537e0E1B28187371b8f3C6516b62c170975bec2b)
 
-**Technical Whitepaper:** Secure CrowdFunding Protocol — Technical Whitepaper v1.0.
+📄 **[Read the Technical Whitepaper (PDF)](https://github.com/barnabasmunuhe/Secure-Crowd_Funding-Protocol/blob/main/docs/whitepaper/Secure_CrowdFunding_Protocol_Whitepaper.pdf)**
 
 ---
 
