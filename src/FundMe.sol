@@ -63,7 +63,7 @@ contract FundMe is Ownable, ReentrancyGuard {
     uint256 private s_totalWithdrawnByOwner;
     uint256 private s_platformFeesCollected;
 
-    AggregatorV3Interface private s_priceFeed;
+    AggregatorV3Interface private immutable s_priceFeed;
     FundMeState private s_state;
 
     uint256 public constant BASIS_POINTS = 10_000;
