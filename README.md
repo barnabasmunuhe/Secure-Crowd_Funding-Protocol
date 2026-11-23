@@ -3,6 +3,7 @@
 [![CI – Foundry Tests](https://github.com/barnabasmunuhe/Secure-Crowd_Funding-Protocol/actions/workflows/test.yml/badge.svg)](https://github.com/barnabasmunuhe/Secure-Crowd_Funding-Protocol/actions/workflows/test.yml)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.33-blue)](https://soliditylang.org/)
 [![Foundry](https://img.shields.io/badge/Framework-Foundry-orange)](https://book.getfoundry.sh/)
+[![Slither](https://img.shields.io/badge/Static%20Analysis-Slither%200.11.6-blueviolet)](https://github.com/crytic/slither)
 [![Network](https://img.shields.io/badge/Network-Sepolia-purple)](https://sepolia.etherscan.io/)
 
 > **Testnet engineering project:** A smart-contract-based crowdfunding application with USD-denominated funding rules, Chainlink ETH/USD price conversion, fee-aware withdrawals and refunds, and a state-driven campaign lifecycle.
@@ -17,7 +18,7 @@ The protocol uses Chainlink Price Feeds to convert ETH contributions into USD va
 
 **Smart Contract:** [View on Sepolia Etherscan](https://sepolia.etherscan.io/address/0x537e0E1B28187371b8f3C6516b62c170975bec2b)
 
-📄 **[Read the Technical Whitepaper (PDF)](https://github.com/barnabasmunuhe/Secure-Crowd_Funding-Protocol/blob/main/docs/whitepaper/Secure_CrowdFunding_Protocol_Whitepaper.pdf)**
+📄 **Technical Whitepaper:** [Secure CrowdFunding Protocol — Technical Whitepaper v1.0 (PDF)](https://github.com/barnabasmunuhe/Secure-Crowd_Funding-Protocol/blob/main/docs/whitepaper/Secure_CrowdFunding_Protocol_Whitepaper.pdf)
 
 ---
 
@@ -38,6 +39,11 @@ The protocol uses Chainlink Price Feeds to convert ETH contributions into USD va
 - [Fee Model and Economic Parameters](#fee-model-and-economic-parameters)
 - [Oracle Integration and Price Safety](#oracle-integration-and-price-safety)
 - [Security Model](#security-model)
+  - [Checks-Effects-Interactions](#checks-effects-interactions)
+  - [Reentrancy Protection](#reentrancy-protection)
+  - [Access Control](#access-control)
+  - [Input and Configuration Validation](#input-and-configuration-validation)
+- [Static Analysis](#static-analysis)
 - [Protocol Invariants](#protocol-invariants)
 - [Events and Accounting](#events-and-accounting)
 - [Getting Started](#getting-started)
@@ -102,6 +108,7 @@ The objective is to demonstrate transparent campaign logic, oracle integration, 
 | Network | Ethereum Sepolia |
 | Solidity | 0.8.33 |
 | Framework | Foundry |
+| Static analysis | Slither 0.11.6 |
 
 These are the documented Sepolia deployment configuration values. The deployed contract's immutable parameters are authoritative for that instance.
 
@@ -552,11 +559,92 @@ The constructor validates:
 
 Custom errors provide structured revert reasons for invalid configurations and operations.
 
-### Audit Status
+## Static Analysis
 
-This project has not been represented as independently audited.
+The protocol underwent static analysis using **Slither v0.11.6**, a Solidity static-analysis framework.
 
-Security controls and passing tests do not establish that a contract is free from vulnerabilities. A professional security review is required before considering any production or mainnet use.
+The analysis was performed in two stages:
+
+1. Full-project analysis, including imported dependencies.
+2. Dependency-excluded analysis, focusing on the project's own contracts.
+
+### Analysis Results
+
+| Metric | Full Scan | Excluding Dependencies |
+|---|---:|---:|
+| Contracts analyzed | 10 | 10 |
+| Detectors executed | 102 | 102 |
+| Reported findings | 49 | 15 |
+
+**Important:** These numbers represent static-analysis findings, not confirmed vulnerabilities. A single finding can identify an intentional design pattern or a dependency implementation that requires contextual review.
+
+### Project-Level Findings
+
+The dependency-excluded scan reported the following detector categories:
+
+| Detector | Finding | Assessment |
+|---|---|---|
+| `incorrect-equality` | Strict zero-balance comparison in `ownerWithdraw()` | Intentional zero-balance validation for an unsigned integer |
+| `unused-return` | Unused `startedAt` value from Chainlink `latestRoundData()` | The protocol validates the other relevant oracle response fields |
+| `timestamp` | Campaign deadline and oracle freshness comparisons | Intentional time-dependent protocol logic |
+| `pragma` | Different Solidity pragma ranges across project and dependencies | Dependency compatibility warning |
+| `low-level-calls` | ETH transfers using `.call` in refund and withdrawal flows | Transfer success is checked; payout functions use reentrancy protection |
+| `naming-convention` | Immutable variables use the `i_` prefix | Intentional project naming convention |
+
+### Dependency Findings
+
+The full-project scan also reported findings originating from imported libraries, particularly OpenZeppelin implementations.
+
+These included:
+
+- `incorrect-exp` and `divide-before-multiply` in OpenZeppelin `Math.mulDiv()`.
+- Assembly usage in OpenZeppelin utility and mathematical functions.
+- `too-many-digits` in an OpenZeppelin mathematical constant.
+- Solidity pragma and compiler-version warnings associated with imported dependencies.
+
+These dependency findings are not attributed to the project's own contract implementation.
+
+### Reproducing the Analysis
+
+Install Slither using `uv`:
+
+```bash
+uv tool install slither-analyzer
+```
+
+Verify the installation:
+
+```bash
+slither --version
+```
+
+Run the full analysis:
+
+```bash
+slither .
+```
+
+Run the analysis without dependency findings:
+
+```bash
+slither . --exclude-dependencies
+```
+
+### Interpretation and Limitations
+
+The reported findings were reviewed in the context of the contract's implementation and intended behavior.
+
+In particular:
+
+- Timestamp checks are necessary for campaign deadlines and oracle freshness enforcement.
+- Low-level ETH transfers are checked for success, and payout functions use `nonReentrant`.
+- The unused Chainlink `startedAt` value is not part of the protocol's current validation requirements.
+- The `i_` immutable-variable prefix is an intentional naming convention.
+- Dependency arithmetic and assembly findings originate from imported OpenZeppelin implementations.
+
+Static analysis cannot establish the absence of vulnerabilities. Findings require manual review, and the absence of a reported finding does not prove that a contract is secure.
+
+**Security status:** Static analysis completed and reported findings reviewed. Independent third-party security audit and formal verification remain outstanding.
 
 ## Protocol Invariants
 
@@ -655,7 +743,7 @@ The project uses Foundry for Solidity testing.
 
 ### Recorded Test Results
 
-The project's whitepaper records the following test run:
+The project's recorded CI test run produced the following results:
 
 | Test Category | Recorded Result |
 |---|---:|
@@ -691,6 +779,8 @@ forge snapshot
 ```
 
 The CI workflow helps verify formatting, compilation, test execution and gas snapshot consistency on repository changes.
+
+[View GitHub Actions](https://github.com/barnabasmunuhe/Secure-Crowd_Funding-Protocol/actions)
 
 ## Deployment
 
@@ -807,6 +897,7 @@ The frontend is a client application. Contract validation remains authoritative 
 - Fixed owner and fee recipient per deployed instance.
 - Dependence on the configured Chainlink price feed.
 - No independent security audit.
+- No formal verification.
 
 ### Potential Future Improvements
 
@@ -829,9 +920,10 @@ Before considering production deployment:
 - [ ] Evaluate multisig ownership.
 - [ ] Review oracle dependency and failure scenarios.
 - [ ] Expand invariant and fuzz testing.
-- [ ] Run static analysis using tools such as Slither or Aderyn.
+- [ ] Review and remediate relevant Slither findings.
 - [ ] Verify deployed source code and constructor arguments.
 - [ ] Review fee accounting and all ETH transfer paths.
+- [ ] Evaluate fee-recipient failure and payout availability risks.
 - [ ] Add operational monitoring and alerting.
 - [ ] Conduct frontend security and integration testing.
 
@@ -861,6 +953,10 @@ Secure-Crowd_Funding-Protocol/
 │   └── workflows/
 │       └── test.yml
 │
+├── docs/
+│   └── whitepaper/
+│       └── Secure_CrowdFunding_Protocol_Whitepaper.pdf
+│
 ├── foundry.toml
 ├── foundry.lock
 ├── README.md
@@ -873,11 +969,14 @@ The test directory reflects the project's testing organization; exact filenames 
 
 - [Solidity Documentation](https://docs.soliditylang.org/)
 - [Foundry Documentation](https://book.getfoundry.sh/)
+- [Slither Static Analyzer](https://github.com/crytic/slither)
+- [Slither Detector Documentation](https://github.com/crytic/slither/wiki/Detector-Documentation)
 - [Chainlink Data Feeds](https://docs.chain.link/data-feeds)
 - [OpenZeppelin Contracts](https://docs.openzeppelin.com/contracts/)
 - [Ethereum Sepolia](https://sepolia.etherscan.io/)
 - [Sepolia Contract](https://sepolia.etherscan.io/address/0x537e0E1B28187371b8f3C6516b62c170975bec2b)
 - [Live Frontend](https://secure-crowd-funding-protocol.vercel.app/)
+- [Technical Whitepaper](https://github.com/barnabasmunuhe/Secure-Crowd_Funding-Protocol/blob/main/docs/whitepaper/Secure_CrowdFunding_Protocol_Whitepaper.pdf)
 
 ## License
 
@@ -885,6 +984,6 @@ MIT License.
 
 ---
 
-**Secure CrowdFunding Protocol** — An engineering demonstration of transparent crowdfunding rules, oracle-based valuation, secure ETH handling and disciplined smart-contract testing.
+**Secure CrowdFunding Protocol** — An engineering demonstration of transparent crowdfunding rules, oracle-based valuation, secure ETH handling, systematic testing and static security analysis.
 
-Built with Solidity, Foundry, Chainlink and OpenZeppelin.
+Built with Solidity, Foundry, Chainlink, OpenZeppelin and Slither.
